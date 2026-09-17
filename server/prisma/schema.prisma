@@ -43,6 +43,7 @@ model Student {
   updatedAt       DateTime @updatedAt
 
   user            User?    @relation(fields: [userId], references: [id])
+  class           Class?   @relation(fields: [classId], references: [id])
 }
 
 model Teacher {
@@ -55,4 +56,52 @@ model Teacher {
   updatedAt DateTime @updatedAt
 
   user      User?    @relation(fields: [userId], references: [id])
+  assignments TeacherAssignment[]
+}
+
+model Class {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  students      Student[]
+  classSubjects ClassSubject[]
+  assignments TeacherAssignment[]
+}
+
+model Subject {
+  id             Int      @id @default(autoincrement())
+  name           String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  classSubjects  ClassSubject[]
+  assignments TeacherAssignment[]
+}
+
+model ClassSubject {
+  id        Int      @id @default(autoincrement())
+  classId   Int
+  subjectId Int
+  createdAt DateTime @default(now())
+
+  class     Class    @relation(fields: [classId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+
+  @@unique([classId, subjectId])
+}
+
+model TeacherAssignment {
+  id        Int      @id @default(autoincrement())
+  teacherId Int
+  subjectId Int
+  classId   Int
+  createdAt DateTime @default(now())
+
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  class     Class    @relation(fields: [classId], references: [id])
+
+  @@unique([teacherId, subjectId, classId])
 }
