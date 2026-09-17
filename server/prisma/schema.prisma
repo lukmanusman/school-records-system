@@ -44,6 +44,7 @@ model Student {
 
   user            User?    @relation(fields: [userId], references: [id])
   class           Class?   @relation(fields: [classId], references: [id])
+  results Result[]
 }
 
 model Teacher {
@@ -57,6 +58,7 @@ model Teacher {
 
   user      User?    @relation(fields: [userId], references: [id])
   assignments TeacherAssignment[]
+  results Result[]
 }
 
 model Class {
@@ -78,6 +80,7 @@ model Subject {
 
   classSubjects  ClassSubject[]
   assignments TeacherAssignment[]
+  results Result[]
 }
 
 model ClassSubject {
@@ -104,4 +107,47 @@ model TeacherAssignment {
   class     Class    @relation(fields: [classId], references: [id])
 
   @@unique([teacherId, subjectId, classId])
+}
+
+model AcademicSession {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  terms     Term[]
+  results Result[]
+}
+
+model Term {
+  id               Int      @id @default(autoincrement())
+  name             String
+  academicSessionId Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  results Result[]
+
+  @@unique([academicSessionId, name])
+}
+
+model Result {
+  id               Int      @id @default(autoincrement())
+  studentId        Int
+  subjectId        Int
+  teacherId        Int
+  academicSessionId Int
+  termId           Int
+  score            Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  student          Student         @relation(fields: [studentId], references: [id])
+  subject          Subject         @relation(fields: [subjectId], references: [id])
+  teacher          Teacher         @relation(fields: [teacherId], references: [id])
+  academicSession  AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term             Term            @relation(fields: [termId], references: [id])
+
+  @@unique([studentId, subjectId, academicSessionId, termId])
 }
