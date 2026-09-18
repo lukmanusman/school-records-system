@@ -1,8 +1,14 @@
 import express from "express";
 import prisma from "./lib/prisma.js";
+import studentRoutes from "./routes/studentRoutes.js";
 
 // const express = require("express");
 const app = express();
+
+app.use(express.json());
+
+app.use("/api/students", studentRoutes);
+
 // const port = process.env.PORT || 3000;
 const PORT = 5000;
 

@@ -18,6 +18,11 @@ enum UserRole {
   STUDENT
 }
 
+enum EnrollmentType {
+  FRESHER
+  TRANSFER
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -26,8 +31,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  student      Student?
-  teacher      Teacher?
+  student Student?
+  teacher Teacher?
 }
 
 model Student {
@@ -36,15 +41,32 @@ model Student {
   firstName       String
   lastName        String
   gender          String
-  dateOfBirth     DateTime?
+  dateOfBirth     DateTime
   classId         Int?
   userId          Int?     @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  user            User?    @relation(fields: [userId], references: [id])
-  class           Class?   @relation(fields: [classId], references: [id])
-  results Result[]
+  user       User?       @relation(fields: [userId], references: [id])
+  class      Class?      @relation(fields: [classId], references: [id])
+  results    Result[]
+  enrollment Enrollment?
+}
+
+model Enrollment {
+  id                Int            @id @default(autoincrement())
+  studentId         Int            @unique
+  academicSessionId Int
+  entryTermId       Int
+  entryClassId      Int
+  enrollmentType    EnrollmentType
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  student         Student         @relation(fields: [studentId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  entryTerm       Term            @relation(fields: [entryTermId], references: [id])
+  entryClass      Class           @relation(fields: [entryClassId], references: [id])
 }
 
 model Teacher {
@@ -56,31 +78,32 @@ model Teacher {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User?    @relation(fields: [userId], references: [id])
+  user        User?               @relation(fields: [userId], references: [id])
   assignments TeacherAssignment[]
-  results Result[]
+  results     Result[]
 }
 
 model Class {
-  id            Int            @id @default(autoincrement())
-  name          String         @unique
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   students      Student[]
   classSubjects ClassSubject[]
-  assignments TeacherAssignment[]
+  assignments   TeacherAssignment[]
+  enrollments   Enrollment[]
 }
 
 model Subject {
-  id             Int      @id @default(autoincrement())
-  name           String   @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  classSubjects  ClassSubject[]
-  assignments TeacherAssignment[]
-  results Result[]
+  classSubjects ClassSubject[]
+  assignments   TeacherAssignment[]
+  results       Result[]
 }
 
 model ClassSubject {
@@ -89,8 +112,8 @@ model ClassSubject {
   subjectId Int
   createdAt DateTime @default(now())
 
-  class     Class    @relation(fields: [classId], references: [id])
-  subject   Subject  @relation(fields: [subjectId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
 
   @@unique([classId, subjectId])
 }
@@ -102,9 +125,9 @@ model TeacherAssignment {
   classId   Int
   createdAt DateTime @default(now())
 
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
-  subject   Subject  @relation(fields: [subjectId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
 
   @@unique([teacherId, subjectId, classId])
 }
@@ -115,39 +138,41 @@ model AcademicSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  terms     Term[]
-  results Result[]
+  terms       Term[]
+  results     Result[]
+  enrollments Enrollment[]
 }
 
 model Term {
-  id               Int      @id @default(autoincrement())
-  name             String
+  id                Int      @id @default(autoincrement())
+  name              String
   academicSessionId Int
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
-  results Result[]
+  results         Result[]
+  enrollments     Enrollment[]
 
   @@unique([academicSessionId, name])
 }
 
 model Result {
-  id               Int      @id @default(autoincrement())
-  studentId        Int
-  subjectId        Int
-  teacherId        Int
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  subjectId         Int
+  teacherId         Int
   academicSessionId Int
-  termId           Int
-  score            Float
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  termId            Int
+  score             Float
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  student          Student         @relation(fields: [studentId], references: [id])
-  subject          Subject         @relation(fields: [subjectId], references: [id])
-  teacher          Teacher         @relation(fields: [teacherId], references: [id])
-  academicSession  AcademicSession @relation(fields: [academicSessionId], references: [id])
-  term             Term            @relation(fields: [termId], references: [id])
+  student         Student         @relation(fields: [studentId], references: [id])
+  subject         Subject         @relation(fields: [subjectId], references: [id])
+  teacher         Teacher         @relation(fields: [teacherId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term            Term            @relation(fields: [termId], references: [id])
 
   @@unique([studentId, subjectId, academicSessionId, termId])
 }
