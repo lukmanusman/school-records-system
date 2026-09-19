@@ -29,6 +29,21 @@ export const enrollStudent = async (req, res) => {
       });
     }
 
+    const sessionId = Number(academicSessionId);
+    const termId = Number(entryTermId);
+    const classId = Number(entryClassId);
+
+    if (
+      !Number.isInteger(sessionId) ||
+      !Number.isInteger(termId) ||
+      !Number.isInteger(classId)
+    ) {
+      return res.status(400).json({
+        message:
+          "Academic session, entry term, and entry class must be valid IDs",
+      });
+    }
+
     // Validate date of birth
     if (isNaN(new Date(dateOfBirth).getTime())) {
       return res.status(400).json({
@@ -42,9 +57,9 @@ export const enrollStudent = async (req, res) => {
       gender,
       dateOfBirth,
       enrollmentType,
-      academicSessionId: Number(academicSessionId),
-      entryTermId: Number(entryTermId),
-      entryClassId: Number(entryClassId),
+      academicSessionId: sessionId,
+      entryTermId: termId,
+      entryClassId: classId,
     });
 
     return res.status(201).json({
@@ -54,7 +69,17 @@ export const enrollStudent = async (req, res) => {
   } catch (error) {
     console.error("Error enrolling student:", error);
 
-    if (error.message === "Invalid enrollment type") {
+    if (
+      [
+        "Invalid enrollment type",
+        "Academic session not found",
+        "Entry term not found",
+        "Entry class not found",
+        "Entry term does not belong to the academic session",
+        "JSS1 students must be enrolled as FRESHER",
+        "Students entering above JSS1 must be enrolled as TRANSFER",
+      ].includes(error.message)
+    ) {
       return res.status(400).json({
         message: error.message,
       });
