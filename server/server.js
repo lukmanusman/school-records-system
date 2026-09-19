@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "./lib/prisma.js";
 import studentRoutes from "./routes/studentRoutes.js";
+import enrollmentRoutes from "./routes/enrollmentRoutes.js";
 
 // const express = require("express");
 const app = express();
@@ -8,6 +9,7 @@ const app = express();
 app.use(express.json());
 
 app.use("/api/students", studentRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
 
 // const port = process.env.PORT || 3000;
 const PORT = 5000;
