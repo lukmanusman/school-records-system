@@ -52,3 +52,21 @@ export const createStudent = async (req, res) => {
     });
   }
 };
+
+export const getStudents = async (req, res) => {
+  try {
+    const students = await prisma.student.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return res.status(200).json(students);
+  } catch (error) {
+    console.error("Error fetching students:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch students",
+    });
+  }
+};
