@@ -1,61 +1,18 @@
 import prisma from "../lib/prisma.js";
 
-export const createStudent = async (req, res) => {
-  try {
-    const { admissionNumber, firstName, lastName, gender, dateOfBirth } =
-      req.body;
-
-    // Validate required fields
-    if (
-      !admissionNumber ||
-      !firstName ||
-      !lastName ||
-      !gender ||
-      !dateOfBirth
-    ) {
-      return res.status(400).json({
-        message:
-          "Admission number, first name, last name, gender and date of birth are required",
-      });
-    }
-
-    // Validate date of birth
-    if (dateOfBirth && isNaN(new Date(dateOfBirth).getTime())) {
-      return res.status(400).json({
-        message: "Invalid date of birth",
-      });
-    }
-
-    const student = await prisma.student.create({
-      data: {
-        admissionNumber,
-        firstName,
-        lastName,
-        gender,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      },
-    });
-
-    res.status(201).json(student);
-  } catch (error) {
-    console.error("Error creating student:", error);
-
-    // Duplicate admission number
-    if (error.code === "P2002") {
-      return res.status(409).json({
-        message: "Admission number already exists",
-      });
-    }
-
-    res.status(500).json({
-      message: "Failed to create student",
-    });
-  }
-};
-
 export const getStudents = async (req, res) => {
   try {
     const students = await prisma.student.findMany({
+      include: {
+        class: true,
+        enrollment: {
+          include: {
+            academicSession: true,
+            entryTerm: true,
+            entryClass: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: "desc",
       },
@@ -67,6 +24,118 @@ export const getStudents = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to fetch students",
+    });
+  }
+};
+
+export const getStudentById = async (req, res) => {
+  try {
+    const studentId = Number(req.params.id);
+
+    if (!Number.isInteger(studentId)) {
+      return res.status(400).json({
+        message: "Invalid student ID",
+      });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: {
+        id: studentId,
+      },
+      include: {
+        class: true,
+        enrollment: {
+          include: {
+            academicSession: true,
+            entryTerm: true,
+            entryClass: true,
+          },
+        },
+      },
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        message: "Student not found",
+      });
+    }
+
+    return res.status(200).json(student);
+  } catch (error) {
+    console.error("Error fetching student:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch student",
+    });
+  }
+};
+
+export const updateStudent = async (req, res) => {
+  try {
+    const studentId = Number(req.params.id);
+
+    if (!Number.isInteger(studentId)) {
+      return res.status(400).json({
+        message: "Invalid student ID",
+      });
+    }
+
+    const { firstName, lastName, gender, dateOfBirth } = req.body;
+
+    // Make sure at least one field is provided
+    if (
+      firstName === undefined &&
+      lastName === undefined &&
+      gender === undefined &&
+      dateOfBirth === undefined
+    ) {
+      return res.status(400).json({
+        message: "At least one field is required",
+      });
+    }
+
+    // Validate date of birth if provided
+    if (dateOfBirth !== undefined && isNaN(new Date(dateOfBirth).getTime())) {
+      return res.status(400).json({
+        message: "Invalid date of birth",
+      });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: {
+        id: studentId,
+      },
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        message: "Student not found",
+      });
+    }
+
+    const updatedStudent = await prisma.student.update({
+      where: {
+        id: studentId,
+      },
+      data: {
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(gender !== undefined && { gender }),
+        ...(dateOfBirth !== undefined && {
+          dateOfBirth: new Date(dateOfBirth),
+        }),
+      },
+    });
+
+    return res.status(200).json({
+      message: "Student updated successfully",
+      data: updatedStudent,
+    });
+  } catch (error) {
+    console.error("Error updating student:", error);
+
+    return res.status(500).json({
+      message: "Failed to update student",
     });
   }
 };
