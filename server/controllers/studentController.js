@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { formatTitleCase } from "../utils/formatText.js";
 
 export const getStudents = async (req, res) => {
   try {
@@ -80,12 +81,13 @@ export const updateStudent = async (req, res) => {
       });
     }
 
-    const { firstName, lastName, gender, dateOfBirth } = req.body;
+    const { firstName, surname, otherName, gender, dateOfBirth } = req.body;
 
     // Make sure at least one field is provided
     if (
       firstName === undefined &&
-      lastName === undefined &&
+      surname === undefined &&
+      otherName === undefined &&
       gender === undefined &&
       dateOfBirth === undefined
     ) {
@@ -118,8 +120,15 @@ export const updateStudent = async (req, res) => {
         id: studentId,
       },
       data: {
-        ...(firstName !== undefined && { firstName }),
-        ...(lastName !== undefined && { lastName }),
+        ...(firstName !== undefined && {
+          firstName: formatTitleCase(firstName),
+        }),
+        ...(surname !== undefined && {
+          surname: formatTitleCase(surname),
+        }),
+        ...(otherName !== undefined && {
+          otherName: otherName ? formatTitleCase(otherName) : null,
+        }),
         ...(gender !== undefined && { gender }),
         ...(dateOfBirth !== undefined && {
           dateOfBirth: new Date(dateOfBirth),

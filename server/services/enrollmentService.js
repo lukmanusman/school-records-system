@@ -1,9 +1,11 @@
 import prisma from "../lib/prisma.js";
 import { generateAdmissionNumber } from "./admissionNumberService.js";
+import { formatTitleCase } from "../utils/formatText.js";
 
 export const createEnrollment = async ({
   firstName,
-  lastName,
+  surname,
+  otherName,
   gender,
   dateOfBirth,
   enrollmentType,
@@ -14,6 +16,10 @@ export const createEnrollment = async ({
   if (!["FRESHER", "TRANSFER"].includes(enrollmentType)) {
     throw new Error("Invalid enrollment type");
   }
+
+  const formattedFirstName = formatTitleCase(firstName);
+  const formattedSurname = formatTitleCase(surname);
+  const formattedOtherName = otherName ? formatTitleCase(otherName) : null;
 
   return prisma.$transaction(async (tx) => {
     const [academicSession, entryTerm, entryClass] = await Promise.all([
@@ -69,8 +75,9 @@ export const createEnrollment = async ({
     const student = await tx.student.create({
       data: {
         admissionNumber,
-        firstName,
-        lastName,
+        firstName: formattedFirstName,
+        surname: formattedSurname,
+        otherName: formattedOtherName,
         gender,
         dateOfBirth: new Date(dateOfBirth),
         classId: entryClassId,

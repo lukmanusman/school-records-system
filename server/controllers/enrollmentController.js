@@ -4,7 +4,8 @@ export const enrollStudent = async (req, res) => {
   try {
     const {
       firstName,
-      lastName,
+      surname,
+      otherName,
       gender,
       dateOfBirth,
       enrollmentType,
@@ -16,7 +17,7 @@ export const enrollStudent = async (req, res) => {
     // Validate required fields
     if (
       !firstName ||
-      !lastName ||
+      !surname ||
       !gender ||
       !dateOfBirth ||
       !enrollmentType ||
@@ -53,7 +54,8 @@ export const enrollStudent = async (req, res) => {
 
     const result = await createEnrollment({
       firstName,
-      lastName,
+      surname,
+      otherName,
       gender,
       dateOfBirth,
       enrollmentType,

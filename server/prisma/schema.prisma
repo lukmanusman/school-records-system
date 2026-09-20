@@ -39,7 +39,8 @@ model Student {
   id              Int      @id @default(autoincrement())
   admissionNumber String   @unique
   firstName       String
-  lastName        String
+  surname         String
+  otherName       String?
   gender          String
   dateOfBirth     DateTime
   classId         Int?
@@ -72,7 +73,8 @@ model Enrollment {
 model Teacher {
   id        Int      @id @default(autoincrement())
   firstName String
-  lastName  String
+  surname   String
+  otherName String?
   email     String   @unique
   userId    Int?     @unique
   createdAt DateTime @default(now())

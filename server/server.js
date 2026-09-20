@@ -5,6 +5,8 @@ import enrollmentRoutes from "./routes/enrollmentRoutes.js";
 import academicSessionRoutes from "./routes/academicSessionRoutes.js";
 import termRoutes from "./routes/termRoutes.js";
 import classRoutes from "./routes/classRoutes.js";
+import subjectRoutes from "./routes/subjectRoutes.js";
+import teacherRoutes from "./routes/teacherRoutes.js";
 
 // const express = require("express");
 const app = express();
@@ -16,6 +18,8 @@ app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/academic-sessions", academicSessionRoutes);
 app.use("/api/terms", termRoutes);
 app.use("/api/classes", classRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/teachers", teacherRoutes);
 
 // const port = process.env.PORT || 3000;
 const PORT = 5000;
