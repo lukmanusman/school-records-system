@@ -66,3 +66,91 @@ export const createTeacher = async (req, res) => {
     });
   }
 };
+
+export const updateTeacher = async (req, res) => {
+  try {
+    const teacherId = Number(req.params.id);
+
+    if (!Number.isInteger(teacherId)) {
+      return res.status(400).json({
+        message: "Invalid teacher ID",
+      });
+    }
+
+    const { firstName, surname, otherName, email } = req.body;
+
+    if (
+      firstName === undefined &&
+      surname === undefined &&
+      otherName === undefined &&
+      email === undefined
+    ) {
+      return res.status(400).json({
+        message: "At least one field is required",
+      });
+    }
+
+    const teacher = await prisma.teacher.findUnique({
+      where: {
+        id: teacherId,
+      },
+    });
+
+    if (!teacher) {
+      return res.status(404).json({
+        message: "Teacher not found",
+      });
+    }
+
+    const normalizedEmail =
+      email !== undefined ? email.trim().toLowerCase() : undefined;
+
+    if (normalizedEmail !== undefined) {
+      const existingTeacher = await prisma.teacher.findFirst({
+        where: {
+          email: normalizedEmail,
+          NOT: {
+            id: teacherId,
+          },
+        },
+      });
+
+      if (existingTeacher) {
+        return res.status(409).json({
+          message: "A teacher with this email already exists",
+        });
+      }
+    }
+
+    const updatedTeacher = await prisma.teacher.update({
+      where: {
+        id: teacherId,
+      },
+      data: {
+        ...(firstName !== undefined && {
+          firstName: formatTitleCase(firstName),
+        }),
+        ...(surname !== undefined && {
+          surname: formatTitleCase(surname),
+        }),
+        ...(otherName !== undefined && {
+          otherName: otherName ? formatTitleCase(otherName) : null,
+        }),
+        ...(normalizedEmail !== undefined && {
+          email: normalizedEmail,
+        }),
+      },
+    });
+
+    return res.status(200).json({
+      message: "Teacher updated successfully",
+      data: updatedTeacher,
+    });
+  } catch (error) {
+    console.error("Error updating teacher:", error);
+
+    return res.status(500).json({
+      message: "Failed to update teacher",
+    });
+  }
+};
