@@ -325,3 +325,173 @@ export const getResultById = async (req, res) => {
     });
   }
 };
+
+export const updateResult = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { caScore, examScore } = req.body;
+
+    // Validate result ID
+    if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
+      return res.status(400).json({
+        message: "Result ID must be a valid positive integer",
+      });
+    }
+
+    const resultId = Number(id);
+
+    // Check that the result exists
+    const existingResult = await prisma.result.findUnique({
+      where: {
+        id: resultId,
+      },
+    });
+
+    if (!existingResult) {
+      return res.status(404).json({
+        message: "Result not found",
+      });
+    }
+
+    // Approved results cannot be edited
+    if (existingResult.status === "APPROVED") {
+      return res.status(403).json({
+        message: "Approved results cannot be edited",
+      });
+    }
+
+    // At least one score must be provided
+    if (caScore === undefined && examScore === undefined) {
+      return res.status(400).json({
+        message: "At least one score must be provided",
+      });
+    }
+
+    // Validate CA score if provided
+    if (caScore !== undefined) {
+      if (typeof caScore !== "number") {
+        return res.status(400).json({
+          message: "CA score must be a number",
+        });
+      }
+
+      if (caScore < 0 || caScore > 40) {
+        return res.status(400).json({
+          message: "CA score must be between 0 and 40",
+        });
+      }
+    }
+
+    // Validate exam score if provided
+    if (examScore !== undefined) {
+      if (typeof examScore !== "number") {
+        return res.status(400).json({
+          message: "Exam score must be a number",
+        });
+      }
+
+      if (examScore < 0 || examScore > 60) {
+        return res.status(400).json({
+          message: "Exam score must be between 0 and 60",
+        });
+      }
+    }
+
+    const updatedResult = await prisma.result.update({
+      where: {
+        id: resultId,
+      },
+      data: {
+        ...(caScore !== undefined && { caScore }),
+        ...(examScore !== undefined && { examScore }),
+      },
+      include: {
+        student: true,
+        subject: true,
+        teacher: true,
+        academicSession: true,
+        term: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Result updated successfully",
+      result: {
+        ...updatedResult,
+        totalScore: updatedResult.caScore + updatedResult.examScore,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating result:", error);
+
+    return res.status(500).json({
+      message: "Failed to update result",
+    });
+  }
+};
+
+export const approveResult = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate result ID
+    if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
+      return res.status(400).json({
+        message: "Result ID must be a valid positive integer",
+      });
+    }
+
+    const resultId = Number(id);
+
+    // Check that the result exists
+    const existingResult = await prisma.result.findUnique({
+      where: {
+        id: resultId,
+      },
+    });
+
+    if (!existingResult) {
+      return res.status(404).json({
+        message: "Result not found",
+      });
+    }
+
+    // Prevent an already approved result from being approved again
+    if (existingResult.status === "APPROVED") {
+      return res.status(409).json({
+        message: "Result is already approved",
+      });
+    }
+
+    const approvedResult = await prisma.result.update({
+      where: {
+        id: resultId,
+      },
+      data: {
+        status: "APPROVED",
+        approvedAt: new Date(),
+      },
+      include: {
+        student: true,
+        subject: true,
+        teacher: true,
+        academicSession: true,
+        term: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Result approved successfully",
+      result: {
+        ...approvedResult,
+        totalScore: approvedResult.caScore + approvedResult.examScore,
+      },
+    });
+  } catch (error) {
+    console.error("Error approving result:", error);
+
+    return res.status(500).json({
+      message: "Failed to approve result",
+    });
+  }
+};

@@ -18,6 +18,11 @@ enum UserRole {
   STUDENT
 }
 
+enum ResultStatus {
+  DRAFT
+  APPROVED
+}
+
 enum EnrollmentType {
   FRESHER
   TRANSFER
@@ -31,8 +36,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  student Student?
-  teacher Teacher?
+  student         Student?
+  teacher         Teacher?
+  approvedResults Result[] @relation("ResultApprover")
 }
 
 model Student {
@@ -160,7 +166,7 @@ model Term {
 }
 
 model Result {
-  id                Int      @id @default(autoincrement())
+  id                Int          @id @default(autoincrement())
   studentId         Int
   subjectId         Int
   teacherId         Int
@@ -168,14 +174,18 @@ model Result {
   termId            Int
   caScore           Float
   examScore         Float
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  status            ResultStatus @default(DRAFT)
+  approvedAt        DateTime?
+  approvedById      Int?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  student           Student         @relation(fields: [studentId], references: [id])
-  subject           Subject         @relation(fields: [subjectId], references: [id])
-  teacher           Teacher         @relation(fields: [teacherId], references: [id])
-  academicSession   AcademicSession @relation(fields: [academicSessionId], references: [id])
-  term              Term            @relation(fields: [termId], references: [id])
+  student         Student         @relation(fields: [studentId], references: [id])
+  subject         Subject         @relation(fields: [subjectId], references: [id])
+  teacher         Teacher         @relation(fields: [teacherId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term            Term            @relation(fields: [termId], references: [id])
+  approvedBy      User?           @relation("ResultApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, subjectId, academicSessionId, termId])
 }
