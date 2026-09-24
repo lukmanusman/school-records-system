@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { formatTitleCase } from "../utils/formatText.js";
+import { hashPassword } from "../utils/password.js";
 
 export const getTeachers = async (req, res) => {
   try {
@@ -21,11 +22,17 @@ export const getTeachers = async (req, res) => {
 
 export const createTeacher = async (req, res) => {
   try {
-    const { firstName, surname, otherName, email } = req.body;
+    const { firstName, surname, otherName, email, password } = req.body;
 
-    if (!firstName || !surname || !email) {
+    if (!firstName || !surname || !email || !password) {
       return res.status(400).json({
-        message: "First name, surname, and email are required",
+        message: "First name, surname, email, and password are required",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters long",
       });
     }
 
@@ -33,9 +40,11 @@ export const createTeacher = async (req, res) => {
     const formattedSurname = formatTitleCase(surname);
     const formattedOtherName = otherName ? formatTitleCase(otherName) : null;
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const existingTeacher = await prisma.teacher.findUnique({
       where: {
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
       },
     });
 
@@ -45,18 +54,55 @@ export const createTeacher = async (req, res) => {
       });
     }
 
-    const teacher = await prisma.teacher.create({
-      data: {
-        firstName: formattedFirstName,
-        surname: formattedSurname,
-        otherName: formattedOtherName,
-        email: email.trim().toLowerCase(),
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
       },
     });
 
+    if (existingUser) {
+      return res.status(409).json({
+        message: "A user with this email already exists",
+      });
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          passwordHash,
+          role: "TEACHER",
+        },
+      });
+
+      const teacher = await tx.teacher.create({
+        data: {
+          firstName: formattedFirstName,
+          surname: formattedSurname,
+          otherName: formattedOtherName,
+          email: normalizedEmail,
+          userId: user.id,
+        },
+      });
+
+      return {
+        user,
+        teacher,
+      };
+    });
+
     return res.status(201).json({
-      message: "Teacher created successfully",
-      data: teacher,
+      message: "Teacher and user account created successfully",
+      data: {
+        teacher: result.teacher,
+        user: {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+        },
+      },
     });
   } catch (error) {
     console.error("Error creating teacher:", error);
