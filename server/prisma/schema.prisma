@@ -166,15 +166,16 @@ model Result {
   teacherId         Int
   academicSessionId Int
   termId            Int
-  score             Float
+  caScore           Float
+  examScore         Float
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  student         Student         @relation(fields: [studentId], references: [id])
-  subject         Subject         @relation(fields: [subjectId], references: [id])
-  teacher         Teacher         @relation(fields: [teacherId], references: [id])
-  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
-  term            Term            @relation(fields: [termId], references: [id])
+  student           Student         @relation(fields: [studentId], references: [id])
+  subject           Subject         @relation(fields: [subjectId], references: [id])
+  teacher           Teacher         @relation(fields: [teacherId], references: [id])
+  academicSession   AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term              Term            @relation(fields: [termId], references: [id])
 
   @@unique([studentId, subjectId, academicSessionId, termId])
 }

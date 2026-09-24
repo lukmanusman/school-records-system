@@ -9,6 +9,7 @@ import subjectRoutes from "./routes/subjectRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import classSubjectRoutes from "./routes/classSubjectRoutes.js";
 import teacherAssignmentRoutes from "./routes/teacherAssignmentRoutes.js";
+import resultRoutes from "./routes/resultRoutes.js";
 
 // const express = require("express");
 const app = express();
@@ -24,6 +25,7 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/class-subjects", classSubjectRoutes);
 app.use("/api/teacher-assignments", teacherAssignmentRoutes);
+app.use("/api/results", resultRoutes);
 
 // const port = process.env.PORT || 3000;
 const PORT = 5000;
