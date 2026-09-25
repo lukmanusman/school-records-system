@@ -1,5 +1,6 @@
 import { PrismaClient } from "../generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { hashPassword } from "../utils/password.js";
 import "dotenv/config";
 
 const adapter = new PrismaPg({
@@ -12,6 +13,31 @@ const prisma = new PrismaClient({
 
 async function main() {
   console.log("Seeding database...");
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error(
+      "ADMIN_EMAIL and ADMIN_PASSWORD must be defined in the environment",
+    );
+  }
+
+  const passwordHash = await hashPassword(adminPassword);
+
+  await prisma.user.upsert({
+    where: {
+      email: adminEmail.trim().toLowerCase(),
+    },
+    update: {},
+    create: {
+      email: adminEmail.trim().toLowerCase(),
+      passwordHash,
+      role: "ADMIN",
+    },
+  });
+
+  console.log("Admin account seeded successfully.");
 
   const academicSession = await prisma.academicSession.upsert({
     where: {

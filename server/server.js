@@ -11,6 +11,8 @@ import classSubjectRoutes from "./routes/classSubjectRoutes.js";
 import teacherAssignmentRoutes from "./routes/teacherAssignmentRoutes.js";
 import resultRoutes from "./routes/resultRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import { protect } from "./middleware/authMiddleware.js";
+import { authorize } from "./middleware/roleMiddleware.js";
 
 // const express = require("express");
 const app = express();

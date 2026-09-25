@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { comparePassword } from "../utils/password.js";
+import { generateToken } from "../utils/jwt.js";
 
 export const login = async (req, res) => {
   try {
@@ -33,12 +34,17 @@ export const login = async (req, res) => {
       });
     }
 
+    const token = generateToken(user);
+
     return res.status(200).json({
       message: "Login successful",
       data: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        token,
       },
     });
   } catch (error) {
