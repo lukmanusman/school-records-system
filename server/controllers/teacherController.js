@@ -168,24 +168,39 @@ export const updateTeacher = async (req, res) => {
       }
     }
 
-    const updatedTeacher = await prisma.teacher.update({
-      where: {
-        id: teacherId,
-      },
-      data: {
-        ...(firstName !== undefined && {
-          firstName: formatTitleCase(firstName),
-        }),
-        ...(surname !== undefined && {
-          surname: formatTitleCase(surname),
-        }),
-        ...(otherName !== undefined && {
-          otherName: otherName ? formatTitleCase(otherName) : null,
-        }),
-        ...(normalizedEmail !== undefined && {
-          email: normalizedEmail,
-        }),
-      },
+    const updatedTeacher = await prisma.$transaction(async (tx) => {
+      const teacherUpdate = await tx.teacher.update({
+        where: {
+          id: teacherId,
+        },
+        data: {
+          ...(firstName !== undefined && {
+            firstName: formatTitleCase(firstName),
+          }),
+          ...(surname !== undefined && {
+            surname: formatTitleCase(surname),
+          }),
+          ...(otherName !== undefined && {
+            otherName: otherName ? formatTitleCase(otherName) : null,
+          }),
+          ...(normalizedEmail !== undefined && {
+            email: normalizedEmail,
+          }),
+        },
+      });
+
+      if (normalizedEmail !== undefined && teacher.userId) {
+        await tx.user.update({
+          where: {
+            id: teacher.userId,
+          },
+          data: {
+            email: normalizedEmail,
+          },
+        });
+      }
+
+      return teacherUpdate;
     });
 
     return res.status(200).json({

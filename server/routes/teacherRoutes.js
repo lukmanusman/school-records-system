@@ -13,6 +13,6 @@ const router = express.Router();
 
 router.get("/", getTeachers);
 router.post("/", protect, authorize("ADMIN"), createTeacher);
-router.patch("/:id", updateTeacher);
+router.patch("/:id", protect, authorize("ADMIN"), updateTeacher);
 
 export default router;
