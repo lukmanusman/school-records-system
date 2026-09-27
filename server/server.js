@@ -11,6 +11,7 @@ import classSubjectRoutes from "./routes/classSubjectRoutes.js";
 import teacherAssignmentRoutes from "./routes/teacherAssignmentRoutes.js";
 import resultRoutes from "./routes/resultRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import resultPublicationRoutes from "./routes/resultPublicationRoutes.js";
 import { protect } from "./middleware/authMiddleware.js";
 import { authorize } from "./middleware/roleMiddleware.js";
 
@@ -29,6 +30,7 @@ app.use("/api/teachers", teacherRoutes);
 app.use("/api/class-subjects", classSubjectRoutes);
 app.use("/api/teacher-assignments", teacherAssignmentRoutes);
 app.use("/api/results", resultRoutes);
+app.use("/api/result-publications", resultPublicationRoutes);
 app.use("/api/auth", authRoutes);
 
 // const port = process.env.PORT || 3000;

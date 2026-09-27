@@ -1,5 +1,16 @@
 import prisma from "../lib/prisma.js";
 
+const calculateTotalScore = (caScore, caStatus, examScore, examStatus) => {
+  if (caStatus === "ABSENT" && examStatus === "ABSENT") {
+    return "ABS";
+  }
+
+  const caTotal = caStatus === "ABSENT" ? 0 : caScore;
+  const examTotal = examStatus === "ABSENT" ? 0 : examScore;
+
+  return caTotal + examTotal;
+};
+
 export const createResult = async (req, res) => {
   try {
     const {
@@ -8,7 +19,9 @@ export const createResult = async (req, res) => {
       academicSessionId,
       termId,
       caScore,
+      caStatus,
       examScore,
+      examStatus,
     } = req.body;
 
     // Validate required fields
@@ -17,11 +30,12 @@ export const createResult = async (req, res) => {
       subjectId === undefined ||
       academicSessionId === undefined ||
       termId === undefined ||
-      caScore === undefined ||
-      examScore === undefined
+      caStatus === undefined ||
+      examStatus === undefined
     ) {
       return res.status(400).json({
-        message: "All result fields are required",
+        message:
+          "Student, subject, session, term, CA status, and exam status are required",
       });
     }
 
@@ -65,21 +79,54 @@ export const createResult = async (req, res) => {
     }
 
     // Validate scores
-    if (typeof caScore !== "number" || typeof examScore !== "number") {
+    // Validate assessment statuses
+    if (!["PRESENT", "ABSENT"].includes(caStatus)) {
       return res.status(400).json({
-        message: "CA score and exam score must be numbers",
+        message: "CA status must be PRESENT or ABSENT",
       });
     }
 
-    if (caScore < 0 || caScore > 40) {
+    if (!["PRESENT", "ABSENT"].includes(examStatus)) {
       return res.status(400).json({
-        message: "CA score must be between 0 and 40",
+        message: "Exam status must be PRESENT or ABSENT",
       });
     }
 
-    if (examScore < 0 || examScore > 60) {
+    // Validate CA score
+    if (caStatus === "PRESENT") {
+      if (typeof caScore !== "number") {
+        return res.status(400).json({
+          message: "CA score must be a number when CA status is PRESENT",
+        });
+      }
+
+      if (caScore < 0 || caScore > 40) {
+        return res.status(400).json({
+          message: "CA score must be between 0 and 40",
+        });
+      }
+    } else if (caScore !== null && caScore !== undefined) {
       return res.status(400).json({
-        message: "Exam score must be between 0 and 60",
+        message: "CA score must be null when CA status is ABSENT",
+      });
+    }
+
+    // Validate exam score
+    if (examStatus === "PRESENT") {
+      if (typeof examScore !== "number") {
+        return res.status(400).json({
+          message: "Exam score must be a number when exam status is PRESENT",
+        });
+      }
+
+      if (examScore < 0 || examScore > 60) {
+        return res.status(400).json({
+          message: "Exam score must be between 0 and 60",
+        });
+      }
+    } else if (examScore !== null && examScore !== undefined) {
+      return res.status(400).json({
+        message: "Exam score must be null when exam status is ABSENT",
       });
     }
 
@@ -214,8 +261,10 @@ export const createResult = async (req, res) => {
         teacherId: teacherIdNumber,
         academicSessionId: academicSessionIdNumber,
         termId: termIdNumber,
-        caScore,
-        examScore,
+        caScore: caStatus === "ABSENT" ? null : caScore,
+        caStatus,
+        examScore: examStatus === "ABSENT" ? null : examScore,
+        examStatus,
       },
       include: {
         student: true,
@@ -230,7 +279,12 @@ export const createResult = async (req, res) => {
       message: "Result created successfully",
       result: {
         ...result,
-        totalScore: caScore + examScore,
+        totalScore: calculateTotalScore(
+          result.caScore,
+          result.caStatus,
+          result.examScore,
+          result.examStatus,
+        ),
       },
     });
   } catch (error) {
@@ -286,7 +340,12 @@ export const getResults = async (req, res) => {
 
     const formattedResults = results.map((result) => ({
       ...result,
-      totalScore: result.caScore + result.examScore,
+      totalScore: calculateTotalScore(
+        result.caScore,
+        result.caStatus,
+        result.examScore,
+        result.examStatus,
+      ),
     }));
 
     return res.status(200).json(formattedResults);
@@ -331,7 +390,12 @@ export const getResultById = async (req, res) => {
 
     return res.status(200).json({
       ...result,
-      totalScore: result.caScore + result.examScore,
+      totalScore: calculateTotalScore(
+        result.caScore,
+        result.caStatus,
+        result.examScore,
+        result.examStatus,
+      ),
     });
   } catch (error) {
     console.error("Error fetching result:", error);
@@ -345,7 +409,7 @@ export const getResultById = async (req, res) => {
 export const updateResult = async (req, res) => {
   try {
     const { id } = req.params;
-    const { caScore, examScore } = req.body;
+    const { caScore, caStatus, examScore, examStatus } = req.body;
 
     // Validate result ID
     if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
@@ -393,32 +457,68 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    // Validate CA score if provided
-    if (caScore !== undefined) {
-      if (typeof caScore !== "number") {
+    // Validate CA assessment if provided
+    if (caStatus !== undefined) {
+      if (!["PRESENT", "ABSENT"].includes(caStatus)) {
         return res.status(400).json({
-          message: "CA score must be a number",
+          message: "CA status must be PRESENT or ABSENT",
         });
       }
 
-      if (caScore < 0 || caScore > 40) {
+      if (caStatus === "PRESENT") {
+        if (caScore === undefined) {
+          return res.status(400).json({
+            message: "CA score is required when CA status is PRESENT",
+          });
+        }
+
+        if (typeof caScore !== "number") {
+          return res.status(400).json({
+            message: "CA score must be a number",
+          });
+        }
+
+        if (caScore < 0 || caScore > 40) {
+          return res.status(400).json({
+            message: "CA score must be between 0 and 40",
+          });
+        }
+      } else if (caScore !== undefined && caScore !== null) {
         return res.status(400).json({
-          message: "CA score must be between 0 and 40",
+          message: "CA score must be null when CA status is ABSENT",
         });
       }
     }
 
-    // Validate exam score if provided
-    if (examScore !== undefined) {
-      if (typeof examScore !== "number") {
+    // Validate exam assessment if provided
+    if (examStatus !== undefined) {
+      if (!["PRESENT", "ABSENT"].includes(examStatus)) {
         return res.status(400).json({
-          message: "Exam score must be a number",
+          message: "Exam status must be PRESENT or ABSENT",
         });
       }
 
-      if (examScore < 0 || examScore > 60) {
+      if (examStatus === "PRESENT") {
+        if (examScore === undefined) {
+          return res.status(400).json({
+            message: "Exam score is required when exam status is PRESENT",
+          });
+        }
+
+        if (typeof examScore !== "number") {
+          return res.status(400).json({
+            message: "Exam score must be a number",
+          });
+        }
+
+        if (examScore < 0 || examScore > 60) {
+          return res.status(400).json({
+            message: "Exam score must be between 0 and 60",
+          });
+        }
+      } else if (examScore !== undefined && examScore !== null) {
         return res.status(400).json({
-          message: "Exam score must be between 0 and 60",
+          message: "Exam score must be null when exam status is ABSENT",
         });
       }
     }
@@ -429,7 +529,15 @@ export const updateResult = async (req, res) => {
       },
       data: {
         ...(caScore !== undefined && { caScore }),
+        ...(caStatus !== undefined && {
+          caStatus,
+          ...(caStatus === "ABSENT" && { caScore: null }),
+        }),
         ...(examScore !== undefined && { examScore }),
+        ...(examStatus !== undefined && {
+          examStatus,
+          ...(examStatus === "ABSENT" && { examScore: null }),
+        }),
       },
       include: {
         student: true,
@@ -444,7 +552,12 @@ export const updateResult = async (req, res) => {
       message: "Result updated successfully",
       result: {
         ...updatedResult,
-        totalScore: updatedResult.caScore + updatedResult.examScore,
+        totalScore: calculateTotalScore(
+          updatedResult.caScore,
+          updatedResult.caStatus,
+          updatedResult.examScore,
+          updatedResult.examStatus,
+        ),
       },
     });
   } catch (error) {

@@ -5,7 +5,6 @@ import {
   getResults,
   getResultById,
   updateResult,
-  approveResult,
 } from "../controllers/resultController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -17,6 +16,5 @@ router.get("/", protect, getResults);
 router.get("/:id", protect, getResultById);
 router.post("/", protect, authorize("TEACHER"), createResult);
 router.patch("/:id", protect, authorize("TEACHER"), updateResult);
-router.patch("/:id/approve", approveResult);
 
 export default router;

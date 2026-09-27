@@ -23,6 +23,11 @@ enum ResultStatus {
   APPROVED
 }
 
+enum AssessmentStatus {
+  PRESENT
+  ABSENT
+}
+
 enum EnrollmentType {
   FRESHER
   TRANSFER
@@ -176,8 +181,10 @@ model Result {
   teacherId         Int
   academicSessionId Int
   termId            Int
-  caScore           Float
-  examScore         Float
+  caScore           Float?
+  caStatus          AssessmentStatus @default(PRESENT)
+  examScore         Float?
+  examStatus        AssessmentStatus @default(PRESENT)
   status            ResultStatus @default(DRAFT)
   approvedAt        DateTime?
   approvedById      Int?
