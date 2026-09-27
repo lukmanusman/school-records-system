@@ -39,6 +39,7 @@ model User {
   student         Student?
   teacher         Teacher?
   approvedResults Result[] @relation("ResultApprover")
+  publishedResults ResultPublication[] @relation("ResultPublisher")
 }
 
 model Student {
@@ -101,6 +102,7 @@ model Class {
   classSubjects ClassSubject[]
   assignments   TeacherAssignment[]
   enrollments   Enrollment[]
+  resultPublications ResultPublication[]
 }
 
 model Subject {
@@ -149,6 +151,7 @@ model AcademicSession {
   terms       Term[]
   results     Result[]
   enrollments Enrollment[]
+  resultPublications ResultPublication[]
 }
 
 model Term {
@@ -161,6 +164,7 @@ model Term {
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
   results         Result[]
   enrollments     Enrollment[]
+  resultPublications ResultPublication[]
 
   @@unique([academicSessionId, name])
 }
@@ -199,4 +203,22 @@ model AdmissionNumberCounter {
   updatedAt      DateTime       @updatedAt
 
   @@unique([year, enrollmentType])
+}
+
+model ResultPublication {
+  id                Int       @id @default(autoincrement())
+  classId           Int
+  academicSessionId Int
+  termId            Int
+  publishedAt       DateTime?
+  publishedById     Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  class           Class           @relation(fields: [classId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term            Term            @relation(fields: [termId], references: [id])
+  publishedBy     User?           @relation("ResultPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([classId, academicSessionId, termId])
 }

@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
   createResult,
   getResults,
@@ -7,12 +8,15 @@ import {
   approveResult,
 } from "../controllers/resultController.js";
 
+import { protect } from "../middleware/authMiddleware.js";
+import { authorize } from "../middleware/roleMiddleware.js";
+
 const router = express.Router();
 
-router.get("/", getResults);
-router.get("/:id", getResultById);
-router.post("/", createResult);
-router.patch("/:id", updateResult);
+router.get("/", protect, getResults);
+router.get("/:id", protect, getResultById);
+router.post("/", protect, authorize("TEACHER"), createResult);
+router.patch("/:id", protect, authorize("TEACHER"), updateResult);
 router.patch("/:id/approve", approveResult);
 
 export default router;

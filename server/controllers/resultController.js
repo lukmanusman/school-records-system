@@ -5,7 +5,6 @@ export const createResult = async (req, res) => {
     const {
       studentId,
       subjectId,
-      teacherId,
       academicSessionId,
       termId,
       caScore,
@@ -16,7 +15,6 @@ export const createResult = async (req, res) => {
     if (
       studentId === undefined ||
       subjectId === undefined ||
-      teacherId === undefined ||
       academicSessionId === undefined ||
       termId === undefined ||
       caScore === undefined ||
@@ -31,7 +29,6 @@ export const createResult = async (req, res) => {
     const ids = {
       studentId,
       subjectId,
-      teacherId,
       academicSessionId,
       termId,
     };
@@ -46,9 +43,26 @@ export const createResult = async (req, res) => {
 
     const studentIdNumber = Number(studentId);
     const subjectIdNumber = Number(subjectId);
-    const teacherIdNumber = Number(teacherId);
     const academicSessionIdNumber = Number(academicSessionId);
     const termIdNumber = Number(termId);
+
+    let teacherIdNumber = null;
+
+    if (req.user.role === "TEACHER") {
+      const teacher = await prisma.teacher.findUnique({
+        where: {
+          userId: req.user.userId,
+        },
+      });
+
+      if (!teacher) {
+        return res.status(404).json({
+          message: "Teacher profile not found",
+        });
+      }
+
+      teacherIdNumber = teacher.id;
+    }
 
     // Validate scores
     if (typeof caScore !== "number" || typeof examScore !== "number") {
@@ -154,21 +168,23 @@ export const createResult = async (req, res) => {
     }
 
     // Check that the teacher teaches this subject in the student's class
-    const teacherAssignment = await prisma.teacherAssignment.findUnique({
-      where: {
-        teacherId_subjectId_classId: {
-          teacherId: teacherIdNumber,
-          subjectId: subjectIdNumber,
-          classId: student.classId,
+    if (req.user.role === "TEACHER") {
+      const teacherAssignment = await prisma.teacherAssignment.findUnique({
+        where: {
+          teacherId_subjectId_classId: {
+            teacherId: teacherIdNumber,
+            subjectId: subjectIdNumber,
+            classId: student.classId,
+          },
         },
-      },
-    });
-
-    if (!teacherAssignment) {
-      return res.status(400).json({
-        message:
-          "This teacher is not assigned to this subject in the student's class",
       });
+
+      if (!teacherAssignment) {
+        return res.status(400).json({
+          message:
+            "You are not assigned to this subject in the student's class",
+        });
+      }
     }
 
     // Check for duplicate result
@@ -353,17 +369,27 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    // Approved results cannot be edited
-    if (existingResult.status === "APPROVED") {
-      return res.status(403).json({
-        message: "Approved results cannot be edited",
+    const teacher = await prisma.teacher.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!teacher) {
+      return res.status(404).json({
+        message: "Teacher profile not found",
       });
     }
 
-    // At least one score must be provided
-    if (caScore === undefined && examScore === undefined) {
-      return res.status(400).json({
-        message: "At least one score must be provided",
+    if (existingResult.teacherId !== teacher.id) {
+      return res.status(403).json({
+        message: "You can only edit results assigned to you",
+      });
+    }
+
+    if (existingResult.status === "APPROVED") {
+      return res.status(403).json({
+        message: "Approved results cannot be edited",
       });
     }
 
