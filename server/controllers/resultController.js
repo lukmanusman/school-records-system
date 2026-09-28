@@ -303,24 +303,58 @@ export const getResults = async (req, res) => {
 
     const where = {};
 
-    // Validate and apply optional filters
-    const filters = {
-      studentId,
-      subjectId,
-      teacherId,
-      academicSessionId,
-      termId,
-    };
+    // Students can only view their own published results
+    if (req.user.role === "STUDENT") {
+      const student = await prisma.student.findUnique({
+        where: {
+          userId: req.user.userId,
+        },
+      });
 
-    for (const [field, value] of Object.entries(filters)) {
-      if (value !== undefined) {
-        if (!Number.isInteger(Number(value)) || Number(value) <= 0) {
-          return res.status(400).json({
-            message: `${field} must be a valid positive integer`,
-          });
+      if (!student) {
+        return res.status(404).json({
+          message: "Student profile not found",
+        });
+      }
+
+      if (!student.classId) {
+        return res.status(400).json({
+          message: "Student is not assigned to a class",
+        });
+      }
+
+      // Ignore any studentId supplied by the student.
+      where.studentId = student.id;
+
+      // Only return results belonging to a published report
+      where.academicSession = {
+        resultPublications: {
+          some: {
+            classId: student.classId,
+            termId: termId !== undefined ? Number(termId) : undefined,
+          },
+        },
+      };
+    } else {
+      // Admins and teachers can use the existing filters
+      const filters = {
+        studentId,
+        subjectId,
+        teacherId,
+        academicSessionId,
+        termId,
+      };
+
+      for (const [field, value] of Object.entries(filters)) {
+        if (value !== undefined) {
+          if (!Number.isInteger(Number(value)) || Number(value) <= 0) {
+            return res.status(400).json({
+              message: `${field} must be a valid positive integer`,
+            });
+          }
+
+          where[field] = Number(value);
         }
-
-        where[field] = Number(value);
       }
     }
 
@@ -386,6 +420,51 @@ export const getResultById = async (req, res) => {
       return res.status(404).json({
         message: "Result not found",
       });
+    }
+
+    // Students can only view their own published results
+    if (req.user.role === "STUDENT") {
+      const student = await prisma.student.findUnique({
+        where: {
+          userId: req.user.userId,
+        },
+      });
+
+      if (!student) {
+        return res.status(404).json({
+          message: "Student profile not found",
+        });
+      }
+
+      // Prevent students from viewing another student's result
+      if (result.studentId !== student.id) {
+        return res.status(404).json({
+          message: "Result not found",
+        });
+      }
+
+      if (!student.classId) {
+        return res.status(400).json({
+          message: "Student is not assigned to a class",
+        });
+      }
+
+      // Check whether this exact class/session/term is published
+      const publication = await prisma.resultPublication.findUnique({
+        where: {
+          classId_academicSessionId_termId: {
+            classId: student.classId,
+            academicSessionId: result.academicSessionId,
+            termId: result.termId,
+          },
+        },
+      });
+
+      if (!publication || !publication.publishedAt) {
+        return res.status(403).json({
+          message: "This result has not been published",
+        });
+      }
     }
 
     return res.status(200).json({

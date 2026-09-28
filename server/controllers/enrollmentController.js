@@ -8,6 +8,8 @@ export const enrollStudent = async (req, res) => {
       otherName,
       gender,
       dateOfBirth,
+      email,
+      password,
       enrollmentType,
       academicSessionId,
       entryTermId,
@@ -20,13 +22,16 @@ export const enrollStudent = async (req, res) => {
       !surname ||
       !gender ||
       !dateOfBirth ||
+      !email ||
+      !password ||
       !enrollmentType ||
       !academicSessionId ||
       !entryTermId ||
       !entryClassId
     ) {
       return res.status(400).json({
-        message: "All enrollment fields are required",
+        message:
+          "All enrollment fields, including email and password, are required",
       });
     }
 
@@ -58,6 +63,8 @@ export const enrollStudent = async (req, res) => {
       otherName,
       gender,
       dateOfBirth,
+      email,
+      password,
       enrollmentType,
       academicSessionId: sessionId,
       entryTermId: termId,
@@ -80,6 +87,7 @@ export const enrollStudent = async (req, res) => {
         "Entry term does not belong to the academic session",
         "JSS1 students must be enrolled as FRESHER",
         "Students entering above JSS1 must be enrolled as TRANSFER",
+        "A user with this email already exists",
       ].includes(error.message)
     ) {
       return res.status(400).json({

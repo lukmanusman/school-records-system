@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { generateAdmissionNumber } from "./admissionNumberService.js";
 import { formatTitleCase } from "../utils/formatText.js";
+import { hashPassword } from "../utils/password.js";
 
 export const createEnrollment = async ({
   firstName,
@@ -8,6 +9,8 @@ export const createEnrollment = async ({
   otherName,
   gender,
   dateOfBirth,
+  email,
+  password,
   enrollmentType,
   academicSessionId,
   entryTermId,
@@ -22,6 +25,20 @@ export const createEnrollment = async ({
   const formattedOtherName = otherName ? formatTitleCase(otherName) : null;
 
   return prisma.$transaction(async (tx) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await tx.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
+    });
+
+    if (existingUser) {
+      throw new Error("A user with this email already exists");
+    }
+
+    const passwordHash = await hashPassword(password);
+
     const [academicSession, entryTerm, entryClass] = await Promise.all([
       tx.academicSession.findUnique({
         where: {
@@ -72,6 +89,14 @@ export const createEnrollment = async ({
 
     const admissionNumber = await generateAdmissionNumber(tx, enrollmentType);
 
+    const user = await tx.user.create({
+      data: {
+        email: normalizedEmail,
+        passwordHash,
+        role: "STUDENT",
+      },
+    });
+
     const student = await tx.student.create({
       data: {
         admissionNumber,
@@ -81,6 +106,7 @@ export const createEnrollment = async ({
         gender,
         dateOfBirth: new Date(dateOfBirth),
         classId: entryClassId,
+        userId: user.id,
       },
     });
 
