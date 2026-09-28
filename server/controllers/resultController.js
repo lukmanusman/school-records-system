@@ -198,6 +198,24 @@ export const createResult = async (req, res) => {
       });
     }
 
+    // Prevent new results from being created after the report is published
+    const publication = await prisma.resultPublication.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: student.classId,
+          academicSessionId: academicSessionIdNumber,
+          termId: termIdNumber,
+        },
+      },
+    });
+
+    if (publication?.publishedAt) {
+      return res.status(409).json({
+        message:
+          "Results for this class, session, and term have already been published",
+      });
+    }
+
     // Check that the subject is offered in the student's current class
     const classSubject = await prisma.classSubject.findUnique({
       where: {
@@ -533,6 +551,40 @@ export const updateResult = async (req, res) => {
     if (existingResult.status === "APPROVED") {
       return res.status(403).json({
         message: "Approved results cannot be edited",
+      });
+    }
+
+    // Get the student's current class
+    const student = await prisma.student.findUnique({
+      where: {
+        id: existingResult.studentId,
+      },
+      select: {
+        classId: true,
+      },
+    });
+
+    if (!student || !student.classId) {
+      return res.status(400).json({
+        message: "Student is not assigned to a class",
+      });
+    }
+
+    // Prevent results from being edited after the report is published
+    const publication = await prisma.resultPublication.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: student.classId,
+          academicSessionId: existingResult.academicSessionId,
+          termId: existingResult.termId,
+        },
+      },
+    });
+
+    if (publication?.publishedAt) {
+      return res.status(409).json({
+        message:
+          "Results for this class, session, and term have already been published",
       });
     }
 
