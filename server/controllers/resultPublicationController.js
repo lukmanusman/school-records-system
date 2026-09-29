@@ -151,9 +151,7 @@ export const publishResults = async (req, res) => {
       where: {
         academicSessionId: academicSessionIdNumber,
         termId: termIdNumber,
-        student: {
-          classId: classIdNumber,
-        },
+        classId: classIdNumber,
         subjectId: {
           in: requiredSubjects.map((subject) => subject.id),
         },

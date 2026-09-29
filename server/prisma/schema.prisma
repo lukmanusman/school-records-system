@@ -41,9 +41,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  student         Student?
-  teacher         Teacher?
-  approvedResults Result[] @relation("ResultApprover")
+  student          Student?
+  teacher          Teacher?
+  approvedResults  Result[]            @relation("ResultApprover")
   publishedResults ResultPublication[] @relation("ResultPublisher")
 }
 
@@ -55,13 +55,13 @@ model Student {
   otherName       String?
   gender          String
   dateOfBirth     DateTime
-  classId         Int?
+  classId         Int
   userId          Int?     @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user       User?       @relation(fields: [userId], references: [id])
-  class      Class?      @relation(fields: [classId], references: [id])
+  class      Class       @relation(fields: [classId], references: [id])
   results    Result[]
   enrollment Enrollment?
 }
@@ -103,11 +103,12 @@ model Class {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  students      Student[]
-  classSubjects ClassSubject[]
-  assignments   TeacherAssignment[]
-  enrollments   Enrollment[]
+  students           Student[]
+  classSubjects      ClassSubject[]
+  assignments        TeacherAssignment[]
+  enrollments        Enrollment[]
   resultPublications ResultPublication[]
+  results            Result[]
 }
 
 model Subject {
@@ -153,9 +154,9 @@ model AcademicSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  terms       Term[]
-  results     Result[]
-  enrollments Enrollment[]
+  terms              Term[]
+  results            Result[]
+  enrollments        Enrollment[]
   resultPublications ResultPublication[]
 }
 
@@ -166,34 +167,36 @@ model Term {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
-  results         Result[]
-  enrollments     Enrollment[]
+  academicSession    AcademicSession     @relation(fields: [academicSessionId], references: [id])
+  results            Result[]
+  enrollments        Enrollment[]
   resultPublications ResultPublication[]
 
   @@unique([academicSessionId, name])
 }
 
 model Result {
-  id                Int          @id @default(autoincrement())
+  id                Int              @id @default(autoincrement())
   studentId         Int
   subjectId         Int
   teacherId         Int
+  classId           Int?
   academicSessionId Int
   termId            Int
   caScore           Float?
   caStatus          AssessmentStatus @default(PRESENT)
   examScore         Float?
   examStatus        AssessmentStatus @default(PRESENT)
-  status            ResultStatus @default(DRAFT)
+  status            ResultStatus     @default(DRAFT)
   approvedAt        DateTime?
   approvedById      Int?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   student         Student         @relation(fields: [studentId], references: [id])
   subject         Subject         @relation(fields: [subjectId], references: [id])
   teacher         Teacher         @relation(fields: [teacherId], references: [id])
+  class           Class?          @relation(fields: [classId], references: [id])
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
   term            Term            @relation(fields: [termId], references: [id])
   approvedBy      User?           @relation("ResultApprover", fields: [approvedById], references: [id], onDelete: SetNull)

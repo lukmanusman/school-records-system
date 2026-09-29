@@ -277,6 +277,7 @@ export const createResult = async (req, res) => {
         studentId: studentIdNumber,
         subjectId: subjectIdNumber,
         teacherId: teacherIdNumber,
+        classId: student.classId,
         academicSessionId: academicSessionIdNumber,
         termId: termIdNumber,
         caScore: caStatus === "ABSENT" ? null : caScore,
@@ -344,15 +345,33 @@ export const getResults = async (req, res) => {
       // Ignore any studentId supplied by the student.
       where.studentId = student.id;
 
-      // Only return results belonging to a published report
-      where.academicSession = {
-        resultPublications: {
-          some: {
-            classId: student.classId,
-            termId: termId !== undefined ? Number(termId) : undefined,
+      // Find published reports that this student's results may belong to.
+      const publishedReports = await prisma.resultPublication.findMany({
+        where: {
+          publishedAt: {
+            not: null,
           },
+          ...(academicSessionId !== undefined && {
+            academicSessionId: Number(academicSessionId),
+          }),
+          ...(termId !== undefined && {
+            termId: Number(termId),
+          }),
         },
-      };
+        select: {
+          classId: true,
+          academicSessionId: true,
+          termId: true,
+        },
+      });
+
+      // Only return results whose historical class/session/term
+      // combination corresponds to a published report.
+      where.OR = publishedReports.map((publication) => ({
+        classId: publication.classId,
+        academicSessionId: publication.academicSessionId,
+        termId: publication.termId,
+      }));
     } else {
       // Admins and teachers can use the existing filters
       const filters = {
@@ -471,7 +490,7 @@ export const getResultById = async (req, res) => {
       const publication = await prisma.resultPublication.findUnique({
         where: {
           classId_academicSessionId_termId: {
-            classId: student.classId,
+            classId: result.classId,
             academicSessionId: result.academicSessionId,
             termId: result.termId,
           },
@@ -574,7 +593,7 @@ export const updateResult = async (req, res) => {
     const publication = await prisma.resultPublication.findUnique({
       where: {
         classId_academicSessionId_termId: {
-          classId: student.classId,
+          classId: existingResult.classId,
           academicSessionId: existingResult.academicSessionId,
           termId: existingResult.termId,
         },
