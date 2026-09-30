@@ -23,6 +23,11 @@ enum ResultStatus {
   APPROVED
 }
 
+enum PromotionDecisionType {
+  PROMOTE
+  REPEAT
+}
+
 enum AssessmentStatus {
   PRESENT
   ABSENT
@@ -64,6 +69,7 @@ model Student {
   class      Class       @relation(fields: [classId], references: [id])
   results    Result[]
   enrollment Enrollment?
+  promotionDecisions PromotionDecision[]
 }
 
 model Enrollment {
@@ -109,6 +115,8 @@ model Class {
   enrollments        Enrollment[]
   resultPublications ResultPublication[]
   results            Result[]
+  promotionsFrom Promotion[] @relation("PromotionFromClass")
+  promotionsTo   Promotion[] @relation("PromotionToClass")
 }
 
 model Subject {
@@ -158,6 +166,7 @@ model AcademicSession {
   results            Result[]
   enrollments        Enrollment[]
   resultPublications ResultPublication[]
+  promotionsFrom Promotion[] @relation("PromotionFromSession")
 }
 
 model Term {
@@ -231,4 +240,35 @@ model ResultPublication {
   publishedBy     User?           @relation("ResultPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
 
   @@unique([classId, academicSessionId, termId])
+}
+
+model Promotion {
+  id                Int      @id @default(autoincrement())
+  fromClassId       Int
+  fromSessionId     Int
+  toClassId         Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  fromClass   Class           @relation("PromotionFromClass", fields: [fromClassId], references: [id])
+  toClass     Class?          @relation("PromotionToClass", fields: [toClassId], references: [id])
+  fromSession AcademicSession @relation("PromotionFromSession", fields: [fromSessionId], references: [id])
+
+  decisions PromotionDecision[]
+
+  @@unique([fromClassId, fromSessionId])
+}
+
+model PromotionDecision {
+  id           Int                   @id @default(autoincrement())
+  promotionId  Int
+  studentId    Int
+  decision     PromotionDecisionType
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id])
+
+  @@unique([promotionId, studentId])
 }
