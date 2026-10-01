@@ -40,6 +40,36 @@ export const preparePromotion = async (req, res) => {
       });
     }
 
+    const thirdTerm = await prisma.term.findFirst({
+      where: {
+        academicSessionId: fromSessionIdNumber,
+        name: "Third Term",
+      },
+    });
+
+    if (!thirdTerm) {
+      return res.status(404).json({
+        message: "Third Term not found for the academic session",
+      });
+    }
+
+    const publication = await prisma.resultPublication.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: fromClassIdNumber,
+          academicSessionId: fromSessionIdNumber,
+          termId: thirdTerm.id,
+        },
+      },
+    });
+
+    if (!publication || !publication.publishedAt) {
+      return res.status(409).json({
+        message:
+          "Third Term results must be published before preparing promotion",
+      });
+    }
+
     const nextClassMap = {
       JSS1: "JSS2",
       JSS2: "JSS3",
@@ -93,21 +123,30 @@ export const preparePromotion = async (req, res) => {
       });
     }
 
-    const promotion = await prisma.promotion.create({
-      data: {
-        fromClassId: fromClassIdNumber,
-        fromSessionId: fromSessionIdNumber,
-        toClassId: toClass.id,
-      },
-    });
+    const { promotion, decisionsCreated } = await prisma.$transaction(
+      async (tx) => {
+        const promotion = await tx.promotion.create({
+          data: {
+            fromClassId: fromClassIdNumber,
+            fromSessionId: fromSessionIdNumber,
+            toClassId: toClass.id,
+          },
+        });
 
-    const decisions = await prisma.promotionDecision.createMany({
-      data: students.map((student) => ({
-        promotionId: promotion.id,
-        studentId: student.id,
-        decision: "PROMOTE",
-      })),
-    });
+        const decisions = await tx.promotionDecision.createMany({
+          data: students.map((student) => ({
+            promotionId: promotion.id,
+            studentId: student.id,
+            decision: "PROMOTE",
+          })),
+        });
+
+        return {
+          promotion,
+          decisionsCreated: decisions.count,
+        };
+      },
+    );
 
     return res.status(201).json({
       message: "Promotion prepared successfully",
