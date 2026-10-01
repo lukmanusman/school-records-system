@@ -200,3 +200,85 @@ export const updatePromotionDecision = async (req, res) => {
     });
   }
 };
+
+export const applyPromotion = async (req, res) => {
+  try {
+    const { promotionId } = req.body;
+
+    const promotionIdNumber = Number(promotionId);
+
+    if (!Number.isInteger(promotionIdNumber)) {
+      return res.status(400).json({
+        message: "Invalid promotion ID",
+      });
+    }
+
+    const promotion = await prisma.promotion.findUnique({
+      where: {
+        id: promotionIdNumber,
+      },
+      include: {
+        decisions: true,
+      },
+    });
+
+    if (!promotion) {
+      return res.status(404).json({
+        message: "Promotion not found",
+      });
+    }
+
+    if (promotion.appliedAt) {
+      return res.status(409).json({
+        message: "Promotion has already been applied",
+      });
+    }
+
+    if (!promotion.toClassId) {
+      return res.status(400).json({
+        message: "Promotion does not have a target class",
+      });
+    }
+
+    if (promotion.decisions.length === 0) {
+      return res.status(400).json({
+        message: "Promotion has no student decisions",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const promotionDecision of promotion.decisions) {
+        if (promotionDecision.decision === "PROMOTE") {
+          await tx.student.update({
+            where: {
+              id: promotionDecision.studentId,
+            },
+            data: {
+              classId: promotion.toClassId,
+            },
+          });
+        }
+      }
+
+      await tx.promotion.update({
+        where: {
+          id: promotion.id,
+        },
+        data: {
+          appliedAt: new Date(),
+        },
+      });
+    });
+
+    return res.status(200).json({
+      message: "Promotion applied successfully",
+      promotionId: promotion.id,
+    });
+  } catch (error) {
+    console.error("Error applying promotion:", error);
+
+    return res.status(500).json({
+      message: "Failed to apply promotion",
+    });
+  }
+};

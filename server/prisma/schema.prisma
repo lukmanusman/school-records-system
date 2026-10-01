@@ -249,6 +249,7 @@ model Promotion {
   toClassId         Int?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  appliedAt         DateTime?
 
   fromClass   Class           @relation("PromotionFromClass", fields: [fromClassId], references: [id])
   toClass     Class?          @relation("PromotionToClass", fields: [toClassId], references: [id])
