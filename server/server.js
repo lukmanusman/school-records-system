@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import prisma from "./lib/prisma.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import enrollmentRoutes from "./routes/enrollmentRoutes.js";
@@ -19,6 +20,7 @@ import { authorize } from "./middleware/roleMiddleware.js";
 // const express = require("express");
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
 app.use("/api/students", studentRoutes);
