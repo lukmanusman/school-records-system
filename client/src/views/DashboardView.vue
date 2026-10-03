@@ -1,14 +1,7 @@
 <script setup>
-import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 
-const router = useRouter()
-const { user, logout } = useAuth()
-
-const handleLogout = () => {
-  logout()
-  router.push({ name: 'login' })
-}
+const { user } = useAuth()
 </script>
 
 <template>
@@ -19,7 +12,5 @@ const handleLogout = () => {
       <p>Welcome, {{ user.email }}</p>
       <p>Role: {{ user.role }}</p>
     </div>
-
-    <button type="button" @click="handleLogout">Logout</button>
   </main>
 </template>
