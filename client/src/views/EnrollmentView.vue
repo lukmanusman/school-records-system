@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
 import { getClasses } from '../services/classes.js'
+import { enrollStudent } from '../services/enrollments.js'
 
 const form = reactive({
   firstName: '',
@@ -19,12 +20,14 @@ const form = reactive({
 })
 
 const academicSessions = ref([])
+const isLoadingSessions = ref(false)
 const terms = ref([])
+const isLoadingTerms = ref(false)
 const errorMessage = ref('')
 const classes = ref([])
-const isLoadingTerms = ref(false)
-const isLoadingSessions = ref(false)
 const isLoadingClasses = ref(false)
+const isSubmitting = ref(false)
+const successMessage = ref('')
 
 const loadAcademicSessions = async () => {
   isLoadingSessions.value = true
@@ -74,6 +77,40 @@ const loadClasses = async () => {
   }
 }
 
+const handleSubmit = async () => {
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  isSubmitting.value = true
+
+  try {
+    const result = await enrollStudent(form)
+
+    successMessage.value = `Student enrolled successfully. Admission Number: ${result.student.admissionNumber}`
+
+    Object.assign(form, {
+      firstName: '',
+      surname: '',
+      otherName: '',
+      gender: '',
+      dateOfBirth: '',
+      email: '',
+      password: '',
+      enrollmentType: '',
+      academicSessionId: '',
+      entryTermId: '',
+      entryClassId: '',
+    })
+
+    terms.value = []
+  } catch (error) {
+    console.error('Enrollment error:', error)
+    errorMessage.value = error.message
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
 watch(
   () => form.academicSessionId,
   (academicSessionId) => {
@@ -98,7 +135,7 @@ onMounted(() => {
     <section>
       <h2>Student Information</h2>
 
-      <form>
+      <form @submit.prevent="handleSubmit">
         <div>
           <label for="firstName">First Name</label>
           <input id="firstName" v-model="form.firstName" type="text" />
@@ -202,6 +239,18 @@ onMounted(() => {
             </option>
           </select>
         </div>
+
+        <p v-if="successMessage">
+          {{ successMessage }}
+        </p>
+
+        <p v-if="errorMessage">
+          {{ errorMessage }}
+        </p>
+
+        <button type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? 'Enrolling...' : 'Enroll Student' }}
+        </button>
       </form>
     </section>
   </div>

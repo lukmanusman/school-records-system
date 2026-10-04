@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getToken } from '../services/authStorage.js'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import StudentsView from '../views/StudentsView.vue'
-import { getToken } from '../services/authStorage.js'
 import AppLayout from '../layouts/AppLayout.vue'
+import EnrollmentView from '../views/EnrollmentView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,11 @@ const router = createRouter({
           path: 'students',
           name: 'students',
           component: StudentsView,
+        },
+        {
+          path: 'enrollments/new',
+          name: 'enrollment-new',
+          component: EnrollmentView,
         },
       ],
     },
