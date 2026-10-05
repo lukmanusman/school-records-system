@@ -1,10 +1,21 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { getStudents } from '../services/students.js'
+import { onMounted, reactive, ref } from 'vue'
+import { getStudents, updateStudent } from '../services/students.js'
 
 const students = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
+const selectedStudent = ref(null)
+const isUpdating = ref(false)
+const updateErrorMessage = ref('')
+
+const editForm = reactive({
+  firstName: '',
+  surname: '',
+  otherName: '',
+  gender: '',
+  dateOfBirth: '',
+})
 
 const loadStudents = async () => {
   isLoading.value = true
@@ -17,6 +28,47 @@ const loadStudents = async () => {
     errorMessage.value = error.message
   } finally {
     isLoading.value = false
+  }
+}
+
+const handleEdit = (student) => {
+  selectedStudent.value = student
+
+  Object.assign(editForm, {
+    firstName: student.firstName,
+    surname: student.surname,
+    otherName: student.otherName || '',
+    gender: student.gender,
+    dateOfBirth: student.dateOfBirth,
+  })
+}
+
+const handleCancelEdit = () => {
+  selectedStudent.value = null
+}
+
+const handleUpdate = async () => {
+  updateErrorMessage.value = ''
+  isUpdating.value = true
+
+  try {
+    const updatedStudent = await updateStudent(selectedStudent.value.id, editForm)
+
+    const studentIndex = students.value.findIndex((student) => student.id === updatedStudent.id)
+
+    if (studentIndex !== -1) {
+      students.value[studentIndex] = {
+        ...students.value[studentIndex],
+        ...updatedStudent,
+      }
+    }
+
+    selectedStudent.value = null
+  } catch (error) {
+    console.error('Error updating student:', error)
+    updateErrorMessage.value = error.message
+  } finally {
+    isUpdating.value = false
   }
 }
 
@@ -48,6 +100,7 @@ onMounted(() => {
             <th>Gender</th>
             <th>Date of Birth</th>
             <th>Class</th>
+            <th>Actions</th>
           </tr>
         </thead>
 
@@ -66,9 +119,56 @@ onMounted(() => {
             <td>{{ student.dateOfBirth }}</td>
 
             <td>{{ student.class?.name || 'Not assigned' }}</td>
+
+            <td>
+              <button type="button" @click="handleEdit(student)">Edit</button>
+            </td>
           </tr>
         </tbody>
       </table>
+      <div v-if="selectedStudent">
+        <h2>Edit Student</h2>
+
+        <form @submit.prevent="handleUpdate">
+          <div>
+            <label for="firstName">First Name</label>
+            <input id="firstName" type="text" v-model="editForm.firstName" />
+          </div>
+
+          <div>
+            <label for="surname">Surname</label>
+            <input id="surname" type="text" v-model="editForm.surname" />
+          </div>
+
+          <div>
+            <label for="otherName">Other Name</label>
+            <input id="otherName" type="text" v-model="editForm.otherName" />
+          </div>
+
+          <div>
+            <label for="gender">Gender</label>
+            <select id="gender" v-model="editForm.gender">
+              <option value="">Select gender</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="dateOfBirth">Date of Birth</label>
+            <input id="dateOfBirth" type="date" v-model="editForm.dateOfBirth" />
+          </div>
+
+          <p v-if="updateErrorMessage">
+            {{ updateErrorMessage }}
+          </p>
+
+          <button type="submit" :disabled="isUpdating">
+            {{ isUpdating ? 'Saving...' : 'Save Changes' }}
+          </button>
+          <button type="button" @click="handleCancelEdit">Cancel</button>
+        </form>
+      </div>
     </div>
   </div>
 </template>
