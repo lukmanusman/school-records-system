@@ -13,6 +13,18 @@ export const getStudents = async () => {
   return data
 }
 
+export const getStudentById = async (studentId) => {
+  const response = await fetch(`${API_BASE_URL}/students/${studentId}`)
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to fetch student')
+  }
+
+  return data
+}
+
 export const updateStudent = async (studentId, studentData) => {
   const token = getToken()
 

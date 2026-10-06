@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { getStudents, updateStudent } from '../services/students.js'
+import { getStudents, updateStudent, getStudentById } from '../services/students.js'
 
 const students = ref([])
 const isLoading = ref(false)
@@ -8,6 +8,9 @@ const errorMessage = ref('')
 const selectedStudent = ref(null)
 const isUpdating = ref(false)
 const updateErrorMessage = ref('')
+const selectedStudentDetails = ref(null)
+const isLoadingDetails = ref(false)
+const detailsErrorMessage = ref('')
 
 const editForm = reactive({
   firstName: '',
@@ -72,6 +75,26 @@ const handleUpdate = async () => {
   }
 }
 
+const handleView = async (studentId) => {
+  selectedStudentDetails.value = null
+  detailsErrorMessage.value = ''
+  isLoadingDetails.value = true
+
+  try {
+    selectedStudentDetails.value = await getStudentById(studentId)
+  } catch (error) {
+    console.error('Error loading student details:', error)
+    detailsErrorMessage.value = error.message
+  } finally {
+    isLoadingDetails.value = false
+  }
+}
+
+const handleCloseDetails = () => {
+  selectedStudentDetails.value = null
+  detailsErrorMessage.value = ''
+}
+
 onMounted(() => {
   loadStudents()
 })
@@ -121,11 +144,90 @@ onMounted(() => {
             <td>{{ student.class?.name || 'Not assigned' }}</td>
 
             <td>
+              <button type="button" @click="handleView(student.id)">View</button>
               <button type="button" @click="handleEdit(student)">Edit</button>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <div v-if="isLoadingDetails">
+        <p>Loading student details...</p>
+      </div>
+
+      <div v-else-if="detailsErrorMessage">
+        <p>{{ detailsErrorMessage }}</p>
+      </div>
+
+      <div v-else-if="selectedStudentDetails">
+        <h2>Student Details</h2>
+
+        <div>
+          <h3>Personal Information</h3>
+
+          <p>
+            <strong>Admission Number:</strong>
+            {{ selectedStudentDetails.admissionNumber }}
+          </p>
+
+          <p>
+            <strong>First Name:</strong>
+            {{ selectedStudentDetails.firstName }}
+          </p>
+
+          <p>
+            <strong>Other Name:</strong>
+            {{ selectedStudentDetails.otherName || 'N/A' }}
+          </p>
+
+          <p>
+            <strong>Surname:</strong>
+            {{ selectedStudentDetails.surname }}
+          </p>
+
+          <p>
+            <strong>Gender:</strong>
+            {{ selectedStudentDetails.gender }}
+          </p>
+
+          <p>
+            <strong>Date of Birth:</strong>
+            {{ selectedStudentDetails.dateOfBirth }}
+          </p>
+        </div>
+
+        <div>
+          <h3>Academic Information</h3>
+
+          <p>
+            <strong>Current Class:</strong>
+            {{ selectedStudentDetails.class?.name || 'Not assigned' }}
+          </p>
+
+          <p>
+            <strong>Enrollment Type:</strong>
+            {{ selectedStudentDetails.enrollment?.enrollmentType || 'N/A' }}
+          </p>
+
+          <p>
+            <strong>Academic Session:</strong>
+            {{ selectedStudentDetails.enrollment?.academicSession?.name || 'N/A' }}
+          </p>
+
+          <p>
+            <strong>Entry Term:</strong>
+            {{ selectedStudentDetails.enrollment?.entryTerm?.name || 'N/A' }}
+          </p>
+
+          <p>
+            <strong>Entry Class:</strong>
+            {{ selectedStudentDetails.enrollment?.entryClass?.name || 'N/A' }}
+          </p>
+        </div>
+      </div>
+
+      <button type="button" @click="handleCloseDetails">Close</button>
+
       <div v-if="selectedStudent">
         <h2>Edit Student</h2>
 
