@@ -12,6 +12,8 @@ const createErrorMessage = ref('')
 const editingTeacherId = ref(null)
 const isUpdating = ref(false)
 const updateErrorMessage = ref('')
+const selectedTeacher = ref(null)
+const isShowingDetails = ref(false)
 
 const form = reactive({
   firstName: '',
@@ -120,6 +122,16 @@ const handleUpdateTeacher = async () => {
   }
 }
 
+const handleViewTeacher = (teacher) => {
+  selectedTeacher.value = teacher
+  isShowingDetails.value = true
+}
+
+const handleCloseDetails = () => {
+  selectedTeacher.value = null
+  isShowingDetails.value = false
+}
+
 onMounted(() => {
   loadTeachers()
 })
@@ -215,11 +227,45 @@ onMounted(() => {
             <td>{{ teacher.email }}</td>
 
             <td>
+              <button type="button" @click="handleViewTeacher(teacher)">View</button>
               <button type="button" @click="handleEditTeacher(teacher)">Edit</button>
             </td>
           </tr>
         </tbody>
       </table>
+
+      <div v-if="isShowingDetails && selectedTeacher">
+        <hr />
+
+        <h2>Teacher Details</h2>
+
+        <p>
+          <strong>First Name:</strong>
+          {{ selectedTeacher.firstName }}
+        </p>
+
+        <p>
+          <strong>Other Name:</strong>
+          {{ selectedTeacher.otherName || '—' }}
+        </p>
+
+        <p>
+          <strong>Surname:</strong>
+          {{ selectedTeacher.surname }}
+        </p>
+
+        <p>
+          <strong>Email:</strong>
+          {{ selectedTeacher.email }}
+        </p>
+
+        <p>
+          <strong>Teacher ID:</strong>
+          {{ selectedTeacher.id }}
+        </p>
+
+        <button type="button" @click="handleCloseDetails">Close</button>
+      </div>
     </div>
   </div>
 </template>
