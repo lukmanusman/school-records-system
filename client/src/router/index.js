@@ -5,6 +5,7 @@ import DashboardView from '../views/DashboardView.vue'
 import StudentsView from '../views/StudentsView.vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import EnrollmentView from '../views/EnrollmentView.vue'
+import TeachersView from '../views/TeachersView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -31,6 +32,11 @@ const router = createRouter({
           path: 'students',
           name: 'students',
           component: StudentsView,
+        },
+        {
+          path: 'teachers',
+          name: 'teachers',
+          component: TeachersView,
         },
         {
           path: 'enrollments/new',
