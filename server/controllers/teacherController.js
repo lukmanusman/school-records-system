@@ -20,6 +20,38 @@ export const getTeachers = async (req, res) => {
   }
 };
 
+export const getTeacherById = async (req, res) => {
+  try {
+    const teacherId = Number(req.params.id);
+
+    if (!Number.isInteger(teacherId)) {
+      return res.status(400).json({
+        message: "Invalid teacher ID",
+      });
+    }
+
+    const teacher = await prisma.teacher.findUnique({
+      where: {
+        id: teacherId,
+      },
+    });
+
+    if (!teacher) {
+      return res.status(404).json({
+        message: "Teacher not found",
+      });
+    }
+
+    return res.status(200).json(teacher);
+  } catch (error) {
+    console.error("Error fetching teacher:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch teacher",
+    });
+  }
+};
+
 export const createTeacher = async (req, res) => {
   try {
     const { firstName, surname, otherName, email, password } = req.body;

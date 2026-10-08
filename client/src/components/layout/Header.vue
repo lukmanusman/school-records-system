@@ -16,6 +16,8 @@ const handleLogout = () => {
     <div v-if="user">
       <p>{{ user.email }}</p>
       <p>{{ user.role }}</p>
+
+      <RouterLink :to="{ name: 'profile' }"> My Profile </RouterLink>
     </div>
     <button type="button" @click="handleLogout">Logout</button>
   </header>

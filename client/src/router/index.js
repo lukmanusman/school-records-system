@@ -6,6 +6,9 @@ import StudentsView from '../views/StudentsView.vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import EnrollmentView from '../views/EnrollmentView.vue'
 import TeachersView from '../views/TeachersView.vue'
+import ChangePasswordView from '../views/ChangePasswordView.vue'
+import ProfileView from '../views/ProfileView.vue'
+import TeacherProfileView from '../views/TeacherProfileView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,6 +45,21 @@ const router = createRouter({
           path: 'enrollments/new',
           name: 'enrollment-new',
           component: EnrollmentView,
+        },
+        {
+          path: 'teachers/:id',
+          name: 'teacher-profile',
+          component: TeacherProfileView,
+        },
+        {
+          path: 'change-password',
+          name: 'change-password',
+          component: ChangePasswordView,
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: ProfileView,
         },
       ],
     },

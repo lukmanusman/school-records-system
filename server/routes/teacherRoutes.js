@@ -2,6 +2,7 @@ import express from "express";
 
 import {
   getTeachers,
+  getTeacherById,
   createTeacher,
   updateTeacher,
 } from "../controllers/teacherController.js";
@@ -11,7 +12,8 @@ import { authorize } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", getTeachers);
+router.get("/", protect, authorize("ADMIN"), getTeachers);
+router.get("/:id", protect, authorize("ADMIN"), getTeacherById);
 router.post("/", protect, authorize("ADMIN"), createTeacher);
 router.patch("/:id", protect, authorize("ADMIN"), updateTeacher);
 

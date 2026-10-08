@@ -1,7 +1,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { getTeachers, createTeacher, updateTeacher } from '../services/teachers.js'
 
+const router = useRouter()
 const teachers = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
@@ -12,8 +14,6 @@ const createErrorMessage = ref('')
 const editingTeacherId = ref(null)
 const isUpdating = ref(false)
 const updateErrorMessage = ref('')
-const selectedTeacher = ref(null)
-const isShowingDetails = ref(false)
 
 const form = reactive({
   firstName: '',
@@ -123,13 +123,12 @@ const handleUpdateTeacher = async () => {
 }
 
 const handleViewTeacher = (teacher) => {
-  selectedTeacher.value = teacher
-  isShowingDetails.value = true
-}
-
-const handleCloseDetails = () => {
-  selectedTeacher.value = null
-  isShowingDetails.value = false
+  router.push({
+    name: 'teacher-profile',
+    params: {
+      id: teacher.id,
+    },
+  })
 }
 
 onMounted(() => {
@@ -233,39 +232,6 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-
-      <div v-if="isShowingDetails && selectedTeacher">
-        <hr />
-
-        <h2>Teacher Details</h2>
-
-        <p>
-          <strong>First Name:</strong>
-          {{ selectedTeacher.firstName }}
-        </p>
-
-        <p>
-          <strong>Other Name:</strong>
-          {{ selectedTeacher.otherName || '—' }}
-        </p>
-
-        <p>
-          <strong>Surname:</strong>
-          {{ selectedTeacher.surname }}
-        </p>
-
-        <p>
-          <strong>Email:</strong>
-          {{ selectedTeacher.email }}
-        </p>
-
-        <p>
-          <strong>Teacher ID:</strong>
-          {{ selectedTeacher.id }}
-        </p>
-
-        <button type="button" @click="handleCloseDetails">Close</button>
-      </div>
     </div>
   </div>
 </template>
