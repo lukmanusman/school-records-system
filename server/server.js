@@ -16,6 +16,7 @@ import resultPublicationRoutes from "./routes/resultPublicationRoutes.js";
 import promotionRoutes from "./routes/promotionRoutes.js";
 import { protect } from "./middleware/authMiddleware.js";
 import { authorize } from "./middleware/roleMiddleware.js";
+import profileImageRoutes from "./routes/profileImageRoutes.js";
 
 // const express = require("express");
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/results", resultRoutes);
 app.use("/api/result-publications", resultPublicationRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/profile-image", profileImageRoutes);
 
 // const port = process.env.PORT || 3000;
 const PORT = 5000;

@@ -39,12 +39,14 @@ enum EnrollmentType {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  role         UserRole
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                   Int      @id @default(autoincrement())
+  email                String   @unique
+  passwordHash         String
+  role                 UserRole
+  profileImageUrl      String?
+  profileImagePublicId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   student          Student?
   teacher          Teacher?
