@@ -145,3 +145,35 @@ export const uploadProfileImage = async (req, res) => {
     });
   }
 };
+
+export const getMyProfile = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        profileImageUrl: true,
+        profileImagePublicId: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Profile retrieved successfully.",
+      data: user,
+    });
+  } catch (error) {
+    console.error("Error retrieving profile:", error.message);
+
+    return res.status(500).json({
+      message: "Failed to retrieve profile.",
+    });
+  }
+};

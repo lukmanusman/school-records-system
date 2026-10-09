@@ -2,9 +2,13 @@ import express from "express";
 import multer from "multer";
 import upload from "../middleware/profileImageUpload.js";
 import { protect } from "../middleware/authMiddleware.js";
-import { uploadProfileImage } from "../controllers/profileImageController.js";
+import {
+  getMyProfile,
+  uploadProfileImage,
+} from "../controllers/profileImageController.js";
 
 const router = express.Router();
+router.get("/me", protect, getMyProfile);
 
 const handleProfileImageUpload = (req, res, next) => {
   upload.single("profileImage")(req, res, (error) => {
