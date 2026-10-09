@@ -33,7 +33,7 @@ export const getStudentById = async (req, res) => {
   try {
     const studentId = Number(req.params.id);
 
-    if (!Number.isInteger(studentId)) {
+    if (!Number.isInteger(studentId) || studentId < 1) {
       return res.status(400).json({
         message: "Invalid student ID",
       });
@@ -58,6 +58,12 @@ export const getStudentById = async (req, res) => {
     if (!student) {
       return res.status(404).json({
         message: "Student not found",
+      });
+    }
+
+    if (req.user.role === "STUDENT" && student.userId !== req.user.userId) {
+      return res.status(403).json({
+        message: "You do not have permission to view this student profile",
       });
     }
 

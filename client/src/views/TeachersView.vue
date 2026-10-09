@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getTeachers, createTeacher, updateTeacher } from '../services/teachers.js'
+import { getTeachers, createTeacher } from '../services/teachers.js'
 
 const router = useRouter()
 const teachers = ref([])
@@ -11,9 +11,6 @@ const errorMessage = ref('')
 const showAddForm = ref(false)
 const isCreating = ref(false)
 const createErrorMessage = ref('')
-const editingTeacherId = ref(null)
-const isUpdating = ref(false)
-const updateErrorMessage = ref('')
 
 const form = reactive({
   firstName: '',
@@ -71,57 +68,6 @@ const handleCreateTeacher = async () => {
   }
 }
 
-const handleEditTeacher = (teacher) => {
-  editingTeacherId.value = teacher.id
-  showAddForm.value = true
-  updateErrorMessage.value = ''
-
-  Object.assign(form, {
-    firstName: teacher.firstName,
-    surname: teacher.surname,
-    otherName: teacher.otherName || '',
-    email: teacher.email,
-    password: '',
-  })
-}
-
-const handleCancelEdit = () => {
-  editingTeacherId.value = null
-  showAddForm.value = false
-  updateErrorMessage.value = ''
-
-  Object.assign(form, {
-    firstName: '',
-    surname: '',
-    otherName: '',
-    email: '',
-    password: '',
-  })
-}
-
-const handleUpdateTeacher = async () => {
-  isUpdating.value = true
-  updateErrorMessage.value = ''
-
-  try {
-    await updateTeacher(editingTeacherId.value, {
-      firstName: form.firstName,
-      surname: form.surname,
-      otherName: form.otherName,
-      email: form.email,
-    })
-
-    await loadTeachers()
-
-    handleCancelEdit()
-  } catch (error) {
-    console.error('Error updating teacher:', error)
-    updateErrorMessage.value = error.message
-  } finally {
-    isUpdating.value = false
-  }
-}
-
 const handleViewTeacher = (teacher) => {
   router.push({
     name: 'teacher-profile',
@@ -143,9 +89,9 @@ onMounted(() => {
     <button v-if="!showAddForm" type="button" @click="handleShowAddForm">Add Teacher</button>
 
     <div v-if="showAddForm">
-      <h2>{{ editingTeacherId ? 'Edit Teacher' : 'Add Teacher' }}</h2>
+      <h2>Add Teacher</h2>
 
-      <form @submit.prevent="editingTeacherId ? handleUpdateTeacher() : handleCreateTeacher()">
+      <form @submit.prevent="handleCreateTeacher">
         <div>
           <label for="firstName">First Name</label>
           <input id="firstName" v-model="form.firstName" type="text" />
@@ -166,30 +112,20 @@ onMounted(() => {
           <input id="email" v-model="form.email" type="email" />
         </div>
 
-        <div v-if="!editingTeacherId">
+        <div>
           <label for="password">Password</label>
           <input id="password" v-model="form.password" type="password" />
         </div>
 
-        <p v-if="updateErrorMessage">
-          {{ updateErrorMessage }}
+        <p v-if="createErrorMessage">
+          {{ createErrorMessage }}
         </p>
 
-        <button type="submit" :disabled="isCreating || isUpdating">
-          {{
-            editingTeacherId
-              ? isUpdating
-                ? 'Updating...'
-                : 'Update Teacher'
-              : isCreating
-                ? 'Creating...'
-                : 'Create Teacher'
-          }}
+        <button type="submit" :disabled="isCreating">
+          {{ isCreating ? 'Creating...' : 'Create Teacher' }}
         </button>
 
-        <button type="button" @click="editingTeacherId ? handleCancelEdit() : handleCancelAdd()">
-          Cancel
-        </button>
+        <button type="button" @click="handleCancelAdd">Cancel</button>
       </form>
     </div>
 
@@ -226,8 +162,7 @@ onMounted(() => {
             <td>{{ teacher.email }}</td>
 
             <td>
-              <button type="button" @click="handleViewTeacher(teacher)">View</button>
-              <button type="button" @click="handleEditTeacher(teacher)">Edit</button>
+              <button type="button" @click="handleViewTeacher(teacher)">View Profile</button>
             </td>
           </tr>
         </tbody>

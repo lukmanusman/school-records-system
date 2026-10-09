@@ -2,7 +2,13 @@ import API_BASE_URL from './api.js'
 import { getToken } from './authStorage.js'
 
 export const getStudents = async () => {
-  const response = await fetch(`${API_BASE_URL}/students`)
+  const token = getToken()
+
+  const response = await fetch(`${API_BASE_URL}/students`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
 
   const data = await response.json()
 
@@ -14,7 +20,13 @@ export const getStudents = async () => {
 }
 
 export const getStudentById = async (studentId) => {
-  const response = await fetch(`${API_BASE_URL}/students/${studentId}`)
+  const token = getToken()
+
+  const response = await fetch(`${API_BASE_URL}/students/${studentId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
 
   const data = await response.json()
 

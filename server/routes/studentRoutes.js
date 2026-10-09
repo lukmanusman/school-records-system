@@ -11,9 +11,14 @@ import { authorize } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", getStudents);
+router.get("/", protect, authorize("ADMIN", "TEACHER"), getStudents);
 
-router.get("/:id", getStudentById);
+router.get(
+  "/:id",
+  protect,
+  authorize("ADMIN", "TEACHER", "STUDENT"),
+  getStudentById,
+);
 
 router.patch("/:id", protect, authorize("ADMIN"), updateStudent);
 

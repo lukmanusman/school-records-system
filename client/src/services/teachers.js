@@ -2,7 +2,13 @@ import API_BASE_URL from './api.js'
 import { getToken } from './authStorage.js'
 
 export const getTeachers = async () => {
-  const response = await fetch(`${API_BASE_URL}/teachers`)
+  const token = getToken()
+
+  const response = await fetch(`${API_BASE_URL}/teachers`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
 
   const data = await response.json()
 
