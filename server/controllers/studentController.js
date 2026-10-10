@@ -6,6 +6,11 @@ export const getStudents = async (req, res) => {
     const students = await prisma.student.findMany({
       include: {
         class: true,
+        user: {
+          select: {
+            profileImageUrl: true,
+          },
+        },
         enrollment: {
           include: {
             academicSession: true,

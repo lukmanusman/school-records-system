@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getStudents } from '../services/students.js'
+import ProfileAvatar from '../components/layout/ProfileAvatar.vue'
 
 const router = useRouter()
 
@@ -69,9 +70,19 @@ onMounted(() => {
             <td>{{ student.admissionNumber }}</td>
 
             <td>
-              {{ student.firstName }}
-              {{ student.otherName ? student.otherName + ' ' : '' }}
-              {{ student.surname }}
+              <div class="student-name">
+                <ProfileAvatar
+                  :image-url="student.user?.profileImageUrl"
+                  :name="`${student.firstName} ${student.surname}`"
+                  :size="36"
+                />
+
+                <span>
+                  {{ student.firstName }}
+                  {{ student.otherName ? student.otherName + ' ' : '' }}
+                  {{ student.surname }}
+                </span>
+              </div>
             </td>
 
             <td>{{ student.gender }}</td>
@@ -106,5 +117,11 @@ td {
 
 th {
   font-weight: 600;
+}
+
+.student-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 </style>

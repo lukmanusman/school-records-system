@@ -5,6 +5,13 @@ import { hashPassword } from "../utils/password.js";
 export const getTeachers = async (req, res) => {
   try {
     const teachers = await prisma.teacher.findMany({
+      include: {
+        user: {
+          select: {
+            profileImageUrl: true,
+          },
+        },
+      },
       orderBy: {
         id: "asc",
       },

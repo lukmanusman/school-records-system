@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getTeachers, createTeacher } from '../services/teachers.js'
+import ProfileAvatar from '../components/layout/ProfileAvatar.vue'
 
 const router = useRouter()
 const teachers = ref([])
@@ -154,9 +155,19 @@ onMounted(() => {
         <tbody>
           <tr v-for="teacher in teachers" :key="teacher.id">
             <td>
-              {{ teacher.firstName }}
-              {{ teacher.otherName ? teacher.otherName + ' ' : '' }}
-              {{ teacher.surname }}
+              <div class="teacher-name">
+                <ProfileAvatar
+                  :image-url="teacher.user?.profileImageUrl"
+                  :name="`${teacher.firstName} ${teacher.surname}`"
+                  :size="36"
+                />
+
+                <span>
+                  {{ teacher.firstName }}
+                  {{ teacher.otherName ? teacher.otherName + ' ' : '' }}
+                  {{ teacher.surname }}
+                </span>
+              </div>
             </td>
 
             <td>{{ teacher.email }}</td>
@@ -187,6 +198,12 @@ td {
 
 th {
   font-weight: 600;
+}
+
+.teacher-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 form {
