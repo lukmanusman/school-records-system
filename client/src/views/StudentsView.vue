@@ -33,6 +33,10 @@ const handleView = (studentId) => {
   })
 }
 
+const handleAddStudent = () => {
+  router.push({ name: 'enrollment-new' })
+}
+
 onMounted(() => {
   loadStudents()
 })
@@ -40,7 +44,11 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1>Students</h1>
+    <div class="students-header">
+      <h1>Students</h1>
+
+      <button type="button" @click="handleAddStudent">Add Student</button>
+    </div>
 
     <p v-if="isLoading">Loading students...</p>
 
@@ -123,5 +131,17 @@ th {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.students-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.students-header h1 {
+  margin: 0;
 }
 </style>

@@ -121,7 +121,6 @@ watch(
 
 onMounted(() => {
   loadAcademicSessions()
-  loadAcademicSessions()
   loadClasses()
 })
 </script>
