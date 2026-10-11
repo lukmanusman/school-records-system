@@ -51,9 +51,21 @@ export const enrollStudent = async (req, res) => {
     }
 
     // Validate date of birth
-    if (isNaN(new Date(dateOfBirth).getTime())) {
+    // Validate date of birth
+    const parsedDateOfBirth = new Date(dateOfBirth);
+
+    if (isNaN(parsedDateOfBirth.getTime())) {
       return res.status(400).json({
         message: "Invalid date of birth",
+      });
+    }
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (parsedDateOfBirth > today) {
+      return res.status(400).json({
+        message: "Date of birth cannot be in the future",
       });
     }
 

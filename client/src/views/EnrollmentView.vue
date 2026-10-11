@@ -137,12 +137,12 @@ onMounted(() => {
       <form @submit.prevent="handleSubmit">
         <div>
           <label for="firstName">First Name</label>
-          <input id="firstName" v-model="form.firstName" type="text" />
+          <input id="firstName" v-model="form.firstName" type="text" required />
         </div>
 
         <div>
           <label for="surname">Surname</label>
-          <input id="surname" v-model="form.surname" type="text" />
+          <input id="surname" v-model="form.surname" type="text" required />
         </div>
 
         <div>
@@ -152,7 +152,7 @@ onMounted(() => {
 
         <div>
           <label for="gender">Gender</label>
-          <select id="gender" v-model="form.gender">
+          <select id="gender" v-model="form.gender" required>
             <option value="">Select gender</option>
             <option value="MALE">Male</option>
             <option value="FEMALE">Female</option>
@@ -161,7 +161,13 @@ onMounted(() => {
 
         <div>
           <label for="dateOfBirth">Date of Birth</label>
-          <input id="dateOfBirth" v-model="form.dateOfBirth" type="date" />
+          <input
+            id="dateOfBirth"
+            v-model="form.dateOfBirth"
+            type="date"
+            :max="new Date().toISOString().split('T')[0]"
+            required
+          />
         </div>
 
         <div>
@@ -171,7 +177,7 @@ onMounted(() => {
 
         <div>
           <label for="password">Password</label>
-          <input id="password" v-model="form.password" type="password" />
+          <input id="password" v-model="form.password" type="password" required />
         </div>
 
         <div>
@@ -190,6 +196,7 @@ onMounted(() => {
             id="academicSession"
             v-model="form.academicSessionId"
             :disabled="isLoadingSessions"
+            required
           >
             <option value="">
               {{ isLoadingSessions ? 'Loading sessions...' : 'Select academic session' }}
@@ -228,7 +235,7 @@ onMounted(() => {
         <div>
           <label for="entryClass">Entry Class</label>
 
-          <select id="entryClass" v-model="form.entryClassId" :disabled="isLoadingClasses">
+          <select id="entryClass" v-model="form.entryClassId" :disabled="isLoadingClasses" required>
             <option value="">
               {{ isLoadingClasses ? 'Loading classes...' : 'Select entry class' }}
             </option>
