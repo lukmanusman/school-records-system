@@ -10,6 +10,7 @@ import ChangePasswordView from '../views/ChangePasswordView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import TeacherProfileView from '../views/TeacherProfileView.vue'
 import StudentProfileView from '../views/StudentProfileView.vue'
+import ClassesView from '../views/ClassesView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -66,6 +67,11 @@ const router = createRouter({
           path: 'profile',
           name: 'profile',
           component: ProfileView,
+        },
+        {
+          path: 'classes',
+          name: 'classes',
+          component: ClassesView,
         },
       ],
     },
