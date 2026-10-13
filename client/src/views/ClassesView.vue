@@ -45,6 +45,7 @@ onMounted(() => {
           <tr>
             <th>Class ID</th>
             <th>Class Name</th>
+            <th>Number of Students</th>
           </tr>
         </thead>
 
@@ -52,6 +53,7 @@ onMounted(() => {
           <tr v-for="schoolClass in classes" :key="schoolClass.id">
             <td>{{ schoolClass.id }}</td>
             <td>{{ schoolClass.name }}</td>
+            <td>{{ schoolClass._count.students }}</td>
           </tr>
         </tbody>
       </table>

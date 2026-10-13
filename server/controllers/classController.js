@@ -6,6 +6,13 @@ export const getClasses = async (req, res) => {
       orderBy: {
         id: "asc",
       },
+      include: {
+        _count: {
+          select: {
+            students: true,
+          },
+        },
+      },
     });
 
     return res.status(200).json(classes);
