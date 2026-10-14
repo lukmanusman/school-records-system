@@ -1,10 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { getClasses } from '../services/classes.js'
+import { getClasses, createClass } from '../services/classes.js'
 
 const classes = ref([])
 const isLoading = ref(false)
+const isCreating = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
+const className = ref('')
 
 const loadClasses = async () => {
   isLoading.value = true
@@ -20,6 +23,27 @@ const loadClasses = async () => {
   }
 }
 
+const handleCreateClass = async () => {
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  isCreating.value = true
+
+  try {
+    await createClass(className.value)
+
+    successMessage.value = 'Class created successfully.'
+    className.value = ''
+
+    await loadClasses()
+  } catch (error) {
+    console.error('Error creating class:', error)
+    errorMessage.value = error.message
+  } finally {
+    isCreating.value = false
+  }
+}
+
 onMounted(() => {
   loadClasses()
 })
@@ -29,39 +53,89 @@ onMounted(() => {
   <div>
     <h1>Classes</h1>
 
-    <p v-if="isLoading">Loading classes...</p>
+    <section>
+      <h2>Create Class</h2>
 
-    <p v-else-if="errorMessage">
-      {{ errorMessage }}
-    </p>
+      <form @submit.prevent="handleCreateClass">
+        <label for="className">Class Name</label>
 
-    <p v-else-if="classes.length === 0">No classes found.</p>
+        <input
+          id="className"
+          v-model="className"
+          type="text"
+          placeholder="e.g. JSS1A"
+          pattern="(JSS[1-3]|SS[1-3])[A-Za-z]"
+          title="Use a class name such as JSS1A or SS2B"
+          required
+        />
 
-    <div v-else>
-      <p>Total classes: {{ classes.length }}</p>
+        <button type="submit" :disabled="isCreating">
+          {{ isCreating ? 'Creating...' : 'Create Class' }}
+        </button>
+      </form>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Class ID</th>
-            <th>Class Name</th>
-            <th>Number of Students</th>
-          </tr>
-        </thead>
+      <p v-if="successMessage">{{ successMessage }}</p>
+      <p v-if="errorMessage">{{ errorMessage }}</p>
+    </section>
 
-        <tbody>
-          <tr v-for="schoolClass in classes" :key="schoolClass.id">
-            <td>{{ schoolClass.id }}</td>
-            <td>{{ schoolClass.name }}</td>
-            <td>{{ schoolClass._count.students }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <section>
+      <h2>Class List</h2>
+
+      <p v-if="isLoading">Loading classes...</p>
+
+      <p v-else-if="classes.length === 0">No classes found.</p>
+
+      <div v-else>
+        <p>Total classes: {{ classes.length }}</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Class ID</th>
+              <th>Class Name</th>
+              <th>Number of Students</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="schoolClass in classes" :key="schoolClass.id">
+              <td>{{ schoolClass.id }}</td>
+              <td>{{ schoolClass.name }}</td>
+              <td>{{ schoolClass._count.students }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
+section {
+  margin-bottom: 2rem;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+input {
+  padding: 0.5rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
