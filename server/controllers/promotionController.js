@@ -2,25 +2,39 @@ import prisma from "../lib/prisma.js";
 
 export const preparePromotion = async (req, res) => {
   try {
-    const { fromClassId, fromSessionId } = req.body;
+    const { fromClassId, toClassId, fromSessionId } = req.body;
 
     const fromClassIdNumber = Number(fromClassId);
+    const toClassIdNumber = Number(toClassId);
     const fromSessionIdNumber = Number(fromSessionId);
 
     if (
       !Number.isInteger(fromClassIdNumber) ||
+      !Number.isInteger(toClassIdNumber) ||
       !Number.isInteger(fromSessionIdNumber)
     ) {
       return res.status(400).json({
-        message: "Invalid class or academic session ID",
+        message: "Invalid source class, target class, or academic session ID",
       });
     }
 
-    const fromClass = await prisma.class.findUnique({
-      where: {
-        id: fromClassIdNumber,
-      },
-    });
+    if (fromClassIdNumber === toClassIdNumber) {
+      return res.status(400).json({
+        message: "Source and target classes must be different",
+      });
+    }
+
+    const [fromClass, toClass, fromSession] = await Promise.all([
+      prisma.class.findUnique({
+        where: { id: fromClassIdNumber },
+      }),
+      prisma.class.findUnique({
+        where: { id: toClassIdNumber },
+      }),
+      prisma.academicSession.findUnique({
+        where: { id: fromSessionIdNumber },
+      }),
+    ]);
 
     if (!fromClass) {
       return res.status(404).json({
@@ -28,15 +42,49 @@ export const preparePromotion = async (req, res) => {
       });
     }
 
-    const fromSession = await prisma.academicSession.findUnique({
-      where: {
-        id: fromSessionIdNumber,
-      },
-    });
+    if (!toClass) {
+      return res.status(404).json({
+        message: "Target class not found",
+      });
+    }
 
     if (!fromSession) {
       return res.status(404).json({
         message: "Source academic session not found",
+      });
+    }
+
+    const nextClassMap = {
+      JSS1: "JSS2",
+      JSS2: "JSS3",
+      JSS3: "SS1",
+      SS1: "SS2",
+      SS2: "SS3",
+    };
+
+    const classNamePattern = /^(JSS[1-3]|SS[1-3])([A-Z])$/;
+
+    const fromMatch = fromClass.name.match(classNamePattern);
+    const toMatch = toClass.name.match(classNamePattern);
+
+    if (!fromMatch || !toMatch) {
+      return res.status(400).json({
+        message:
+          "Promotion requires stream-based class names such as JSS1A or SS2B",
+      });
+    }
+
+    const expectedNextLevel = nextClassMap[fromMatch[1]];
+
+    if (!expectedNextLevel) {
+      return res.status(400).json({
+        message: "SS3 students cannot be promoted to another class",
+      });
+    }
+
+    if (toMatch[1] !== expectedNextLevel || toMatch[2] !== fromMatch[2]) {
+      return res.status(400).json({
+        message: `Invalid promotion target. ${fromClass.name} must promote to ${expectedNextLevel}${fromMatch[2]}`,
       });
     }
 
@@ -70,43 +118,6 @@ export const preparePromotion = async (req, res) => {
       });
     }
 
-    const nextClassMap = {
-      JSS1: "JSS2",
-      JSS2: "JSS3",
-      JSS3: "SS1",
-      SS1: "SS2",
-      SS2: "SS3",
-    };
-
-    const nextClassName = nextClassMap[fromClass.name];
-
-    if (!nextClassName) {
-      return res.status(400).json({
-        message: "This class does not have a promotion target",
-      });
-    }
-
-    const toClass = await prisma.class.findUnique({
-      where: {
-        name: nextClassName,
-      },
-    });
-
-    if (!toClass) {
-      return res.status(500).json({
-        message: "Promotion target class not found",
-      });
-    }
-
-    const students = await prisma.student.findMany({
-      where: {
-        classId: fromClassIdNumber,
-      },
-      orderBy: {
-        id: "asc",
-      },
-    });
-
     const existingPromotion = await prisma.promotion.findUnique({
       where: {
         fromClassId_fromSessionId: {
@@ -123,13 +134,22 @@ export const preparePromotion = async (req, res) => {
       });
     }
 
+    const students = await prisma.student.findMany({
+      where: {
+        classId: fromClassIdNumber,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
     const { promotion, decisionsCreated } = await prisma.$transaction(
       async (tx) => {
         const promotion = await tx.promotion.create({
           data: {
             fromClassId: fromClassIdNumber,
+            toClassId: toClassIdNumber,
             fromSessionId: fromSessionIdNumber,
-            toClassId: toClass.id,
           },
         });
 
@@ -151,7 +171,7 @@ export const preparePromotion = async (req, res) => {
     return res.status(201).json({
       message: "Promotion prepared successfully",
       promotion,
-      decisionsCreated: decisions.count,
+      decisionsCreated,
       fromClass,
       fromSession,
       toClass,

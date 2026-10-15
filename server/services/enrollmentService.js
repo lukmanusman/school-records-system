@@ -75,7 +75,7 @@ export const createEnrollment = async ({
       throw new Error("Entry term does not belong to the academic session");
     }
 
-    const isJSS1 = entryClass.name === "JSS1";
+    const isJSS1 = /^JSS1[A-Z]?$/.test(entryClass.name);
 
     if (isJSS1 && enrollmentType !== "FRESHER") {
       throw new Error("JSS1 students must be enrolled as FRESHER");
