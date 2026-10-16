@@ -11,6 +11,8 @@ import ProfileView from '../views/ProfileView.vue'
 import TeacherProfileView from '../views/TeacherProfileView.vue'
 import StudentProfileView from '../views/StudentProfileView.vue'
 import ClassesView from '../views/ClassesView.vue'
+import SubjectsView from '../views/SubjectsView.vue'
+import ClassSubjectsView from '../views/ClassSubjectsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -72,6 +74,16 @@ const router = createRouter({
           path: 'classes',
           name: 'classes',
           component: ClassesView,
+        },
+        {
+          path: 'subjects',
+          name: 'subjects',
+          component: SubjectsView,
+        },
+        {
+          path: 'class-subjects',
+          name: 'class-subjects',
+          component: ClassSubjectsView,
         },
       ],
     },
