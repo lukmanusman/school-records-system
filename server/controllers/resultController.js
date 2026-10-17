@@ -561,9 +561,20 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    if (existingResult.teacherId !== teacher.id) {
+    const teacherAssignment = await prisma.teacherAssignment.findUnique({
+      where: {
+        teacherId_subjectId_classId: {
+          teacherId: teacher.id,
+          subjectId: existingResult.subjectId,
+          classId: existingResult.classId,
+        },
+      },
+    });
+
+    if (!teacherAssignment) {
       return res.status(403).json({
-        message: "You can only edit results assigned to you",
+        message:
+          "You can only edit results for subjects assigned to you in this class",
       });
     }
 
