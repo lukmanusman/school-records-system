@@ -120,9 +120,19 @@ export const createEnrollment = async ({
       },
     });
 
+    const classPlacement = await tx.studentClassPlacement.create({
+      data: {
+        studentId: student.id,
+        classId: entryClassId,
+        academicSessionId,
+        startingTermId: entryTermId,
+      },
+    });
+
     return {
       student,
       enrollment,
+      classPlacement,
     };
   });
 };
