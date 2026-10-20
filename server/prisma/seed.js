@@ -43,25 +43,35 @@ async function main() {
     where: {
       name: "2026/2027",
     },
-    update: {},
+    update: {
+      status: "ACTIVE",
+    },
     create: {
       name: "2026/2027",
+      status: "ACTIVE",
     },
   });
 
-  const terms = ["First Term", "Second Term", "Third Term"];
+  const terms = [
+    { name: "First Term", status: "ACTIVE" },
+    { name: "Second Term", status: "UPCOMING" },
+    { name: "Third Term", status: "UPCOMING" },
+  ];
 
-  for (const name of terms) {
+  for (const term of terms) {
     await prisma.term.upsert({
       where: {
         academicSessionId_name: {
           academicSessionId: academicSession.id,
-          name,
+          name: term.name,
         },
       },
-      update: {},
+      update: {
+        status: term.status,
+      },
       create: {
-        name,
+        name: term.name,
+        status: term.status,
         academicSessionId: academicSession.id,
       },
     });

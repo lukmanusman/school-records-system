@@ -45,6 +45,20 @@ enum EnrollmentType {
   TRANSFER
 }
 
+enum AcademicSessionStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TermStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
 model User {
   id                   Int      @id @default(autoincrement())
   email                String   @unique
@@ -77,6 +91,7 @@ model Student {
 
   user       User?       @relation(fields: [userId], references: [id])
   class      Class       @relation(fields: [classId], references: [id])
+  classPlacements StudentClassPlacement[]
   results    Result[]
   enrollment Enrollment?
   promotionDecisions PromotionDecision[]
@@ -96,6 +111,24 @@ model Enrollment {
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
   entryTerm       Term            @relation(fields: [entryTermId], references: [id])
   entryClass      Class           @relation(fields: [entryClassId], references: [id])
+}
+
+model StudentClassPlacement {
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  classId           Int
+  academicSessionId Int
+  startingTermId    Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  student         Student         @relation(fields: [studentId], references: [id])
+  class           Class           @relation(fields: [classId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  startingTerm    Term            @relation(fields: [startingTermId], references: [id])
+
+  @@unique([studentId, academicSessionId])
+  @@index([classId, academicSessionId])
 }
 
 model Teacher {
@@ -125,6 +158,7 @@ model Class {
   classSubjects      ClassSubject[]
   assignments        TeacherAssignment[]
   enrollments        Enrollment[]
+  studentPlacements StudentClassPlacement[]
   formTeacherAssignments FormTeacherAssignment[]
   classResultSheets      ClassResultSheet[]
   resultPublications ResultPublication[]
@@ -188,6 +222,7 @@ model FormTeacherAssignment {
 model AcademicSession {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  status    AcademicSessionStatus @default(PLANNED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -196,6 +231,7 @@ model AcademicSession {
   classResultSheets      ClassResultSheet[]
   results            Result[]
   enrollments        Enrollment[]
+  studentPlacements StudentClassPlacement[]
   resultPublications ResultPublication[]
   promotionsFrom Promotion[] @relation("PromotionFromSession")
 }
@@ -204,12 +240,14 @@ model Term {
   id                Int      @id @default(autoincrement())
   name              String
   academicSessionId Int
+  status TermStatus @default(UPCOMING)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   academicSession    AcademicSession     @relation(fields: [academicSessionId], references: [id])
   results            Result[]
   enrollments        Enrollment[]
+  startingPlacements StudentClassPlacement[]
   classResultSheets ClassResultSheet[]
   resultPublications ResultPublication[]
 
