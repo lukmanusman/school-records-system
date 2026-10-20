@@ -14,7 +14,7 @@ const prisma = new PrismaClient({
 async function main() {
   console.log("Seeding database...");
 
-  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD;
 
   if (!adminEmail || !adminPassword) {
@@ -27,11 +27,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: {
-      email: adminEmail.trim().toLowerCase(),
+      email: adminEmail,
     },
     update: {},
     create: {
-      email: adminEmail.trim().toLowerCase(),
+      email: adminEmail,
       passwordHash,
       role: "ADMIN",
     },
@@ -67,27 +67,14 @@ async function main() {
     });
   }
 
-  const classes = ["JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"];
-
-  for (const name of classes) {
-    await prisma.class.upsert({
-      where: {
-        name,
-      },
-      update: {},
-      create: {
-        name,
-      },
-    });
-  }
-
-  console.log("Database seeded successfully.");
+  console.log("Initial academic session and terms seeded successfully.");
+  console.log("Database seeding completed.");
 }
 
 main()
   .catch((error) => {
     console.error("Seeding failed:", error);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

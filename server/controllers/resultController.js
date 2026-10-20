@@ -271,27 +271,51 @@ export const createResult = async (req, res) => {
       });
     }
 
-    // Create result
-    const result = await prisma.result.create({
-      data: {
-        studentId: studentIdNumber,
-        subjectId: subjectIdNumber,
-        teacherId: teacherIdNumber,
-        classId: student.classId,
-        academicSessionId: academicSessionIdNumber,
-        termId: termIdNumber,
-        caScore: caStatus === "ABSENT" ? null : caScore,
-        caStatus,
-        examScore: examStatus === "ABSENT" ? null : examScore,
-        examStatus,
-      },
-      include: {
-        student: true,
-        subject: true,
-        teacher: true,
-        academicSession: true,
-        term: true,
-      },
+    // Create the class result sheet and score in one transaction.
+    const result = await prisma.$transaction(async (tx) => {
+      const classResultSheet = await tx.classResultSheet.upsert({
+        where: {
+          classId_academicSessionId_termId: {
+            classId: student.classId,
+            academicSessionId: academicSessionIdNumber,
+            termId: termIdNumber,
+          },
+        },
+        update: {},
+        create: {
+          classId: student.classId,
+          academicSessionId: academicSessionIdNumber,
+          termId: termIdNumber,
+        },
+      });
+
+      // Scores may only be entered while the sheet is editable.
+      if (!["DRAFT", "RETURNED"].includes(classResultSheet.status)) {
+        const error = new Error("CLASS_RESULT_SHEET_LOCKED");
+        throw error;
+      }
+
+      return tx.result.create({
+        data: {
+          studentId: studentIdNumber,
+          subjectId: subjectIdNumber,
+          teacherId: teacherIdNumber,
+          classId: student.classId,
+          academicSessionId: academicSessionIdNumber,
+          termId: termIdNumber,
+          caScore: caStatus === "ABSENT" ? null : caScore,
+          caStatus,
+          examScore: examStatus === "ABSENT" ? null : examScore,
+          examStatus,
+        },
+        include: {
+          student: true,
+          subject: true,
+          teacher: true,
+          academicSession: true,
+          term: true,
+        },
+      });
     });
 
     return res.status(201).json({
@@ -307,6 +331,12 @@ export const createResult = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.message === "CLASS_RESULT_SHEET_LOCKED") {
+      return res.status(409).json({
+        message:
+          "This class's results are submitted or approved and cannot currently be edited",
+      });
+    }
     console.error("Error creating result:", error);
 
     return res.status(500).json({

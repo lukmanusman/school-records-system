@@ -80,6 +80,99 @@ export const publishResults = async (req, res) => {
       });
     }
 
+    // Enforce term progression across all classes with students.
+    const termOrder = ["First Term", "Second Term", "Third Term"];
+    const currentTermIndex = termOrder.indexOf(term.name);
+
+    if (currentTermIndex === -1) {
+      return res.status(400).json({
+        message: "Invalid academic term",
+      });
+    }
+
+    if (currentTermIndex > 0) {
+      const previousTermName = termOrder[currentTermIndex - 1];
+
+      const previousTerm = await prisma.term.findUnique({
+        where: {
+          academicSessionId_name: {
+            academicSessionId: academicSessionIdNumber,
+            name: previousTermName,
+          },
+        },
+      });
+
+      if (!previousTerm) {
+        return res.status(409).json({
+          message: `Cannot publish results because ${previousTermName} is not configured for this session`,
+        });
+      }
+
+      // Only classes with students are required to publish results.
+      const relevantClasses = await prisma.class.findMany({
+        where: {
+          students: {
+            some: {},
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      const previousPublications = await prisma.resultPublication.findMany({
+        where: {
+          academicSessionId: academicSessionIdNumber,
+          termId: previousTerm.id,
+          classId: {
+            in: relevantClasses.map((schoolClass) => schoolClass.id),
+          },
+          publishedAt: {
+            not: null,
+          },
+        },
+        select: {
+          classId: true,
+        },
+      });
+
+      const publishedClassIds = new Set(
+        previousPublications.map((publication) => publication.classId),
+      );
+
+      const classesMissingPublication = relevantClasses.filter(
+        (schoolClass) => !publishedClassIds.has(schoolClass.id),
+      );
+
+      if (classesMissingPublication.length > 0) {
+        return res.status(409).json({
+          message: `Cannot publish ${term.name} until ${previousTermName} results have been published for every class with students`,
+          classesMissingPublication: classesMissingPublication.map(
+            (schoolClass) => schoolClass.name,
+          ),
+        });
+      }
+    }
+
+    // Require the class result sheet to be approved before publication.
+    const classResultSheet = await prisma.classResultSheet.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: classIdNumber,
+          academicSessionId: academicSessionIdNumber,
+          termId: termIdNumber,
+        },
+      },
+    });
+
+    if (!classResultSheet || classResultSheet.status !== "APPROVED") {
+      return res.status(409).json({
+        message:
+          "The class result sheet must be approved before results can be published",
+      });
+    }
+
     // Check whether this report has already been published
     const existingPublication = await prisma.resultPublication.findUnique({
       where: {
@@ -111,13 +204,13 @@ export const publishResults = async (req, res) => {
       },
     });
 
-    // Get subjects that actually have at least one teacher assigned
-    const assignments = await prisma.teacherAssignment.findMany({
+    // Get all subjects offered to this class.
+    // A subject is required even if no teacher has been assigned to it.
+    const classSubjects = await prisma.classSubject.findMany({
       where: {
         classId: classIdNumber,
       },
       select: {
-        subjectId: true,
         subject: {
           select: {
             id: true,
@@ -125,11 +218,10 @@ export const publishResults = async (req, res) => {
           },
         },
       },
-      distinct: ["subjectId"],
     });
 
-    const requiredSubjects = assignments.map(
-      (assignment) => assignment.subject,
+    const requiredSubjects = classSubjects.map(
+      (classSubject) => classSubject.subject,
     );
 
     // No students means there is nothing to publish
@@ -142,7 +234,7 @@ export const publishResults = async (req, res) => {
     // No assigned subjects means there are no required results
     if (requiredSubjects.length === 0) {
       return res.status(400).json({
-        message: "No subjects with assigned teachers were found for this class",
+        message: "No subjects have been configured for this class",
       });
     }
 
@@ -159,37 +251,62 @@ export const publishResults = async (req, res) => {
       select: {
         studentId: true,
         subjectId: true,
+        caScore: true,
+        caStatus: true,
+        examScore: true,
+        examStatus: true,
       },
     });
 
-    // Build a lookup set for existing results
-    const existingResultKeys = new Set(
-      results.map((result) => `${result.studentId}-${result.subjectId}`),
+    // Build a lookup map for existing results.
+    const existingResults = new Map(
+      results.map((result) => [
+        `${result.studentId}-${result.subjectId}`,
+        result,
+      ]),
     );
 
-    // Find missing results
-    const missingResults = [];
+    // Find missing or incomplete results.
+    const incompleteResults = [];
 
     for (const student of students) {
       for (const subject of requiredSubjects) {
         const key = `${student.id}-${subject.id}`;
+        const result = existingResults.get(key);
 
-        if (!existingResultKeys.has(key)) {
-          missingResults.push({
+        const caComplete =
+          result &&
+          ((result.caStatus === "PRESENT" &&
+            result.caScore !== null &&
+            result.caScore !== undefined) ||
+            (result.caStatus === "ABSENT" && result.caScore === null));
+
+        const examComplete =
+          result &&
+          ((result.examStatus === "PRESENT" &&
+            result.examScore !== null &&
+            result.examScore !== undefined) ||
+            (result.examStatus === "ABSENT" && result.examScore === null));
+
+        if (!result || !caComplete || !examComplete) {
+          incompleteResults.push({
             studentId: student.id,
             studentName: `${student.firstName} ${student.surname}`,
             admissionNumber: student.admissionNumber,
             subjectId: subject.id,
             subjectName: subject.name,
+            missingCA: !result || !caComplete,
+            missingExam: !result || !examComplete,
           });
         }
       }
     }
 
-    if (missingResults.length > 0) {
+    if (incompleteResults.length > 0) {
       return res.status(400).json({
-        message: "Results are incomplete. Some required results are missing.",
-        missingResults,
+        message:
+          "Results are incomplete. Some required assessments are missing or invalid.",
+        incompleteResults,
       });
     }
 

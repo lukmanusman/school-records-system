@@ -33,6 +33,13 @@ enum AssessmentStatus {
   ABSENT
 }
 
+enum ClassResultSheetStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  APPROVED
+}
+
 enum EnrollmentType {
   FRESHER
   TRANSFER
@@ -50,6 +57,7 @@ model User {
 
   student          Student?
   teacher          Teacher?
+  reviewedClassResultSheets ClassResultSheet[] @relation("ClassResultSheetReviewer")
   approvedResults  Result[]            @relation("ResultApprover")
   publishedResults ResultPublication[] @relation("ResultPublisher")
 }
@@ -102,6 +110,8 @@ model Teacher {
 
   user        User?               @relation(fields: [userId], references: [id])
   assignments TeacherAssignment[]
+  formTeacherAssignments    FormTeacherAssignment[]
+  submittedClassResultSheets ClassResultSheet[] @relation("ClassResultSheetSubmitter")
   results     Result[]
 }
 
@@ -115,6 +125,8 @@ model Class {
   classSubjects      ClassSubject[]
   assignments        TeacherAssignment[]
   enrollments        Enrollment[]
+  formTeacherAssignments FormTeacherAssignment[]
+  classResultSheets      ClassResultSheet[]
   resultPublications ResultPublication[]
   results            Result[]
   promotionsFrom Promotion[] @relation("PromotionFromClass")
@@ -158,6 +170,21 @@ model TeacherAssignment {
   @@unique([teacherId, subjectId, classId])
 }
 
+model FormTeacherAssignment {
+  id                Int      @id @default(autoincrement())
+  teacherId         Int
+  classId           Int
+  academicSessionId Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  teacher         Teacher        @relation(fields: [teacherId], references: [id])
+  class           Class          @relation(fields: [classId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+
+  @@unique([classId, academicSessionId])
+}
+
 model AcademicSession {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -165,6 +192,8 @@ model AcademicSession {
   updatedAt DateTime @updatedAt
 
   terms              Term[]
+  formTeacherAssignments FormTeacherAssignment[]
+  classResultSheets      ClassResultSheet[]
   results            Result[]
   enrollments        Enrollment[]
   resultPublications ResultPublication[]
@@ -181,6 +210,7 @@ model Term {
   academicSession    AcademicSession     @relation(fields: [academicSessionId], references: [id])
   results            Result[]
   enrollments        Enrollment[]
+  classResultSheets ClassResultSheet[]
   resultPublications ResultPublication[]
 
   @@unique([academicSessionId, name])
@@ -224,6 +254,32 @@ model AdmissionNumberCounter {
   updatedAt      DateTime       @updatedAt
 
   @@unique([year, enrollmentType])
+}
+
+model ClassResultSheet {
+  id                    Int                  @id @default(autoincrement())
+  classId               Int
+  academicSessionId     Int
+  termId                Int
+  status                ClassResultSheetStatus @default(DRAFT)
+  submittedAt           DateTime?
+  submittedByTeacherId  Int?
+  reviewedAt            DateTime?
+  reviewedById          Int?
+  approvedAt            DateTime?
+  returnReason          String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  class           Class          @relation(fields: [classId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
+  term            Term           @relation(fields: [termId], references: [id])
+
+    submittedByTeacher Teacher? @relation("ClassResultSheetSubmitter", fields: [submittedByTeacherId], references: [id], onDelete: SetNull)
+
+  reviewedBy User? @relation("ClassResultSheetReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([classId, academicSessionId, termId])
 }
 
 model ResultPublication {
