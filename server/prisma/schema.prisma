@@ -222,6 +222,7 @@ model FormTeacherAssignment {
 model AcademicSession {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  sequence  Int      @unique
   status    AcademicSessionStatus @default(PLANNED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

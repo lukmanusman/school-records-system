@@ -4,7 +4,7 @@ export const getAcademicSessions = async (req, res) => {
   try {
     const academicSessions = await prisma.academicSession.findMany({
       orderBy: {
-        name: "desc",
+        sequence: "desc",
       },
     });
 
@@ -20,32 +20,28 @@ export const getAcademicSessions = async (req, res) => {
 
 export const startNewAcademicSession = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, sequence } = req.body;
 
-    if (!name || typeof name !== "string" || !name.trim()) {
+    if (typeof name !== "string" || !name.trim()) {
       return res.status(400).json({
         message: "Academic session name is required",
       });
     }
 
-    const sessionName = name.trim();
-
-    const existingSession = await prisma.academicSession.findUnique({
-      where: {
-        name: sessionName,
-      },
-    });
-
-    if (existingSession) {
-      return res.status(409).json({
-        message: "Academic session already exists",
+    if (!Number.isInteger(sequence) || sequence < 1) {
+      return res.status(400).json({
+        message: "Sequence must be a positive integer",
       });
     }
+
+    const sessionName = name.trim();
 
     const academicSession = await prisma.$transaction(async (tx) => {
       const session = await tx.academicSession.create({
         data: {
           name: sessionName,
+          sequence,
+          status: "PLANNED",
         },
       });
 
@@ -54,14 +50,17 @@ export const startNewAcademicSession = async (req, res) => {
           {
             name: "First Term",
             academicSessionId: session.id,
+            status: "UPCOMING",
           },
           {
             name: "Second Term",
             academicSessionId: session.id,
+            status: "UPCOMING",
           },
           {
             name: "Third Term",
             academicSessionId: session.id,
+            status: "UPCOMING",
           },
         ],
       });
@@ -70,14 +69,21 @@ export const startNewAcademicSession = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "New academic session started successfully",
+      message: "Academic session created successfully",
       academicSession,
     });
   } catch (error) {
-    console.error("Error starting new academic session:", error);
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        message:
+          "An academic session with this name or sequence already exists",
+      });
+    }
+
+    console.error("Error creating academic session:", error);
 
     return res.status(500).json({
-      message: "Failed to start new academic session",
+      message: "Failed to create academic session",
     });
   }
 };

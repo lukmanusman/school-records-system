@@ -43,11 +43,10 @@ async function main() {
     where: {
       name: "2026/2027",
     },
-    update: {
-      status: "ACTIVE",
-    },
+    update: {},
     create: {
       name: "2026/2027",
+      sequence: 1,
       status: "ACTIVE",
     },
   });
@@ -66,9 +65,7 @@ async function main() {
           name: term.name,
         },
       },
-      update: {
-        status: term.status,
-      },
+      update: {},
       create: {
         name: term.name,
         status: term.status,
