@@ -331,3 +331,172 @@ export const submitClassResultSheet = async (req, res) => {
     });
   }
 };
+
+export const returnClassResultSheet = async (req, res) => {
+  try {
+    const sheetId = Number(req.params.id);
+    const { reason } = req.body;
+
+    if (!Number.isInteger(sheetId) || sheetId <= 0) {
+      return res.status(400).json({
+        message: "A valid class result sheet ID is required",
+      });
+    }
+
+    if (typeof reason !== "string" || !reason.trim()) {
+      return res.status(400).json({
+        message: "A reason is required when returning a result sheet",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const sheet = await tx.classResultSheet.findUnique({
+        where: { id: sheetId },
+      });
+
+      if (!sheet) {
+        return {
+          status: 404,
+          body: { message: "Class result sheet not found" },
+        };
+      }
+
+      if (sheet.status !== "SUBMITTED") {
+        return {
+          status: 409,
+          body: {
+            message: "Only SUBMITTED result sheets can be returned",
+          },
+        };
+      }
+
+      const publication = await tx.resultPublication.findUnique({
+        where: {
+          classId_academicSessionId_termId: {
+            classId: sheet.classId,
+            academicSessionId: sheet.academicSessionId,
+            termId: sheet.termId,
+          },
+        },
+      });
+
+      if (publication?.publishedAt) {
+        return {
+          status: 409,
+          body: {
+            message: "Published results cannot be returned for correction",
+          },
+        };
+      }
+
+      const updatedSheet = await tx.classResultSheet.update({
+        where: { id: sheet.id },
+        data: {
+          status: "RETURNED",
+          reviewedAt: new Date(),
+          reviewedById: req.user.userId,
+          returnReason: reason.trim(),
+          approvedAt: null,
+        },
+      });
+
+      return {
+        status: 200,
+        body: {
+          message: "Class result sheet returned for correction",
+          classResultSheet: updatedSheet,
+        },
+      };
+    });
+
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    console.error("Error returning class result sheet:", error);
+
+    return res.status(500).json({
+      message: "Failed to return class result sheet",
+    });
+  }
+};
+
+export const approveClassResultSheet = async (req, res) => {
+  try {
+    const sheetId = Number(req.params.id);
+
+    if (!Number.isInteger(sheetId) || sheetId <= 0) {
+      return res.status(400).json({
+        message: "A valid class result sheet ID is required",
+      });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const sheet = await tx.classResultSheet.findUnique({
+        where: { id: sheetId },
+      });
+
+      if (!sheet) {
+        return {
+          status: 404,
+          body: { message: "Class result sheet not found" },
+        };
+      }
+
+      if (sheet.status !== "SUBMITTED") {
+        return {
+          status: 409,
+          body: {
+            message: "Only SUBMITTED result sheets can be approved",
+          },
+        };
+      }
+
+      const publication = await tx.resultPublication.findUnique({
+        where: {
+          classId_academicSessionId_termId: {
+            classId: sheet.classId,
+            academicSessionId: sheet.academicSessionId,
+            termId: sheet.termId,
+          },
+        },
+      });
+
+      if (publication?.publishedAt) {
+        return {
+          status: 409,
+          body: {
+            message: "Published results cannot be approved",
+          },
+        };
+      }
+
+      const now = new Date();
+
+      const updatedSheet = await tx.classResultSheet.update({
+        where: { id: sheet.id },
+        data: {
+          status: "APPROVED",
+          reviewedAt: now,
+          reviewedById: req.user.userId,
+          approvedAt: now,
+          returnReason: null,
+        },
+      });
+
+      return {
+        status: 200,
+        body: {
+          message: "Class result sheet approved successfully",
+          classResultSheet: updatedSheet,
+        },
+      };
+    });
+
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    console.error("Error approving class result sheet:", error);
+
+    return res.status(500).json({
+      message: "Failed to approve class result sheet",
+    });
+  }
+};
