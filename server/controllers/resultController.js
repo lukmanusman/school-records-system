@@ -573,12 +573,6 @@ export const updateResult = async (req, res) => {
       },
     });
 
-    if (!existingResult) {
-      return res.status(404).json({
-        message: "Result not found",
-      });
-    }
-
     const teacher = await prisma.teacher.findUnique({
       where: {
         userId: req.user.userId,
@@ -627,6 +621,27 @@ export const updateResult = async (req, res) => {
     if (!student || !student.classId) {
       return res.status(400).json({
         message: "Student is not assigned to a class",
+      });
+    }
+
+    // Check whether the class result sheet allows score editing
+    const classResultSheet = await prisma.classResultSheet.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: existingResult.classId,
+          academicSessionId: existingResult.academicSessionId,
+          termId: existingResult.termId,
+        },
+      },
+    });
+
+    if (
+      !classResultSheet ||
+      !["DRAFT", "RETURNED"].includes(classResultSheet.status)
+    ) {
+      return res.status(409).json({
+        message:
+          "Scores can only be edited while the class result sheet is in DRAFT or RETURNED status",
       });
     }
 

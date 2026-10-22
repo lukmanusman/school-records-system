@@ -18,6 +18,7 @@ import promotionRoutes from "./routes/promotionRoutes.js";
 import { protect } from "./middleware/authMiddleware.js";
 import { authorize } from "./middleware/roleMiddleware.js";
 import profileImageRoutes from "./routes/profileImageRoutes.js";
+import classResultSheetRoutes from "./routes/classResultSheetRoutes.js";
 
 // const express = require("express");
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/class-subjects", classSubjectRoutes);
 app.use("/api/teacher-assignments", teacherAssignmentRoutes);
 app.use("/api/form-teacher-assignments", formTeacherAssignmentRoutes);
 app.use("/api/results", resultRoutes);
+app.use("/api/class-result-sheets", classResultSheetRoutes);
 app.use("/api/result-publications", resultPublicationRoutes);
 app.use("/api/promotions", promotionRoutes);
 app.use("/api/auth", authRoutes);

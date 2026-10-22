@@ -220,6 +220,13 @@ export const updatePromotionDecision = async (req, res) => {
       });
     }
 
+    if (promotion.appliedAt) {
+      return res.status(409).json({
+        message:
+          "Promotion decisions cannot be changed after promotion has been applied",
+      });
+    }
+
     const promotionDecision = await prisma.promotionDecision.findUnique({
       where: {
         promotionId_studentId: {
@@ -262,11 +269,9 @@ export const updatePromotionDecision = async (req, res) => {
 
 export const applyPromotion = async (req, res) => {
   try {
-    const { promotionId } = req.body;
+    const promotionId = Number(req.body.promotionId);
 
-    const promotionIdNumber = Number(promotionId);
-
-    if (!Number.isInteger(promotionIdNumber)) {
+    if (!Number.isInteger(promotionId) || promotionId < 1) {
       return res.status(400).json({
         message: "Invalid promotion ID",
       });
@@ -274,7 +279,7 @@ export const applyPromotion = async (req, res) => {
 
     const promotion = await prisma.promotion.findUnique({
       where: {
-        id: promotionIdNumber,
+        id: promotionId,
       },
       include: {
         decisions: true,
@@ -305,18 +310,165 @@ export const applyPromotion = async (req, res) => {
       });
     }
 
+    // Find the source academic session.
+    const fromSession = await prisma.academicSession.findUnique({
+      where: {
+        id: promotion.fromSessionId,
+      },
+    });
+
+    if (!fromSession) {
+      return res.status(404).json({
+        message: "Source academic session not found",
+      });
+    }
+
+    if (fromSession.status !== "ACTIVE") {
+      return res.status(409).json({
+        message:
+          "Promotion can only be applied during an active academic session",
+      });
+    }
+
+    // The next session must have the immediately following sequence.
+    const nextSession = await prisma.academicSession.findUnique({
+      where: {
+        sequence: fromSession.sequence + 1,
+      },
+    });
+
+    if (!nextSession) {
+      return res.status(409).json({
+        message:
+          "The next academic session has not been created. Create it before applying promotion.",
+      });
+    }
+
+    if (nextSession.status !== "PLANNED") {
+      return res.status(409).json({
+        message: "The next academic session must be in PLANNED status",
+      });
+    }
+
+    // Find the next session's First Term.
+    const firstTerm = await prisma.term.findUnique({
+      where: {
+        academicSessionId_name: {
+          academicSessionId: nextSession.id,
+          name: "First Term",
+        },
+      },
+    });
+
+    if (!firstTerm) {
+      return res.status(409).json({
+        message: "First Term is missing from the next academic session",
+      });
+    }
+
+    if (firstTerm.status !== "UPCOMING") {
+      return res.status(409).json({
+        message: "First Term of the next session must be UPCOMING",
+      });
+    }
+
+    // Confirm that Third Term results have been published for this class.
+    const thirdTerm = await prisma.term.findUnique({
+      where: {
+        academicSessionId_name: {
+          academicSessionId: fromSession.id,
+          name: "Third Term",
+        },
+      },
+    });
+
+    if (!thirdTerm) {
+      return res.status(409).json({
+        message: "Third Term is missing from the source academic session",
+      });
+    }
+
+    const publication = await prisma.resultPublication.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: promotion.fromClassId,
+          academicSessionId: fromSession.id,
+          termId: thirdTerm.id,
+        },
+      },
+    });
+
+    if (!publication || !publication.publishedAt) {
+      return res.status(409).json({
+        message:
+          "Third Term results must be published before applying promotion",
+      });
+    }
+
+    // Verify that every current student in the source class has a decision,
+    // and that no decision belongs to a student outside that class.
+    const currentStudents = await prisma.student.findMany({
+      where: {
+        classId: promotion.fromClassId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const currentStudentIds = new Set(
+      currentStudents.map((student) => student.id),
+    );
+
+    const decisionStudentIds = new Set(
+      promotion.decisions.map((decision) => decision.studentId),
+    );
+
+    const hasMissingDecision = [...currentStudentIds].some(
+      (studentId) => !decisionStudentIds.has(studentId),
+    );
+
+    const hasUnexpectedDecision = [...decisionStudentIds].some(
+      (studentId) => !currentStudentIds.has(studentId),
+    );
+
+    if (hasMissingDecision || hasUnexpectedDecision) {
+      return res.status(409).json({
+        message:
+          "Promotion decisions must match the current student roster. Review and prepare the promotion again.",
+      });
+    }
+
+    // Update students, create next-session placements, and mark the
+    // promotion applied as one atomic operation.
     await prisma.$transaction(async (tx) => {
-      for (const promotionDecision of promotion.decisions) {
-        if (promotionDecision.decision === "PROMOTE") {
+      for (const decision of promotion.decisions) {
+        const classId =
+          decision.decision === "PROMOTE"
+            ? promotion.toClassId
+            : promotion.fromClassId;
+
+        if (decision.decision === "PROMOTE") {
           await tx.student.update({
             where: {
-              id: promotionDecision.studentId,
+              id: decision.studentId,
             },
             data: {
-              classId: promotion.toClassId,
+              classId,
             },
           });
         }
+
+        // PROMOTE students enter the target class.
+        // REPEAT students remain in their existing class.
+        await tx.studentClassPlacement.create({
+          data: {
+            studentId: decision.studentId,
+            classId,
+            academicSessionId: nextSession.id,
+            startingTermId: firstTerm.id,
+          },
+        });
       }
 
       await tx.promotion.update({
@@ -332,8 +484,19 @@ export const applyPromotion = async (req, res) => {
     return res.status(200).json({
       message: "Promotion applied successfully",
       promotionId: promotion.id,
+      fromSession: fromSession.name,
+      nextSession: nextSession.name,
+      studentsProcessed: promotion.decisions.length,
+      placementsCreated: promotion.decisions.length,
     });
   } catch (error) {
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        message:
+          "A placement or other unique record already exists for this promotion. No changes were committed.",
+      });
+    }
+
     console.error("Error applying promotion:", error);
 
     return res.status(500).json({
