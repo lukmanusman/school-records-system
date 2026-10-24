@@ -80,6 +80,21 @@ export const publishResults = async (req, res) => {
       });
     }
 
+    // Only the active academic session can have results published.
+    if (academicSession.status !== "ACTIVE") {
+      return res.status(409).json({
+        message:
+          "Results can only be published for the active academic session",
+      });
+    }
+
+    // Only the active term can have results published.
+    if (term.status !== "ACTIVE") {
+      return res.status(409).json({
+        message: "Results can only be published for the active term",
+      });
+    }
+
     // Enforce term progression across all classes with students.
     const termOrder = ["First Term", "Second Term", "Third Term"];
     const currentTermIndex = termOrder.indexOf(term.name);
@@ -108,18 +123,55 @@ export const publishResults = async (req, res) => {
         });
       }
 
-      // Only classes with students are required to publish results.
-      const relevantClasses = await prisma.class.findMany({
-        where: {
-          students: {
-            some: {},
+      // Only classes that had students by the previous term
+      // are required to have published results.
+      const previousTermIndex = termOrder.indexOf(previousTerm.name);
+
+      const previousTermPlacements =
+        await prisma.studentClassPlacement.findMany({
+          where: {
+            academicSessionId: academicSessionIdNumber,
           },
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
+          select: {
+            classId: true,
+            startingTerm: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        });
+
+      const relevantClassIds = [
+        ...new Set(
+          previousTermPlacements
+            .filter((placement) => {
+              const startingTermIndex = termOrder.indexOf(
+                placement.startingTerm.name,
+              );
+
+              return (
+                startingTermIndex !== -1 &&
+                startingTermIndex <= previousTermIndex
+              );
+            })
+            .map((placement) => placement.classId),
+        ),
+      ];
+
+      const relevantClasses = relevantClassIds.length
+        ? await prisma.class.findMany({
+            where: {
+              id: {
+                in: relevantClassIds,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          })
+        : [];
 
       const previousPublications = await prisma.resultPublication.findMany({
         where: {
@@ -191,18 +243,41 @@ export const publishResults = async (req, res) => {
       });
     }
 
-    // Get students currently in the class
-    const students = await prisma.student.findMany({
+    // Get the historical class roster for this academic session.
+    const placements = await prisma.studentClassPlacement.findMany({
       where: {
         classId: classIdNumber,
+        academicSessionId: academicSessionIdNumber,
       },
-      select: {
-        id: true,
-        admissionNumber: true,
-        firstName: true,
-        surname: true,
+      include: {
+        startingTerm: {
+          select: {
+            name: true,
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            admissionNumber: true,
+            firstName: true,
+            surname: true,
+          },
+        },
       },
     });
+
+    // Include students who had joined by the selected term.
+    const students = placements
+      .filter((placement) => {
+        const startingTermIndex = termOrder.indexOf(
+          placement.startingTerm.name,
+        );
+
+        return (
+          startingTermIndex !== -1 && startingTermIndex <= currentTermIndex
+        );
+      })
+      .map((placement) => placement.student);
 
     // Get all subjects offered to this class.
     // A subject is required even if no teacher has been assigned to it.

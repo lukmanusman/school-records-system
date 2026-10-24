@@ -198,6 +198,20 @@ export const createResult = async (req, res) => {
       });
     }
 
+    // Only the active academic session accepts new results.
+    if (academicSession.status !== "ACTIVE") {
+      return res.status(409).json({
+        message: "Results can only be entered for the active academic session",
+      });
+    }
+
+    // Only the active term accepts new results.
+    if (term.status !== "ACTIVE") {
+      return res.status(409).json({
+        message: "Results can only be entered for the active term",
+      });
+    }
+
     // Prevent new results from being created after the report is published
     const publication = await prisma.resultPublication.findUnique({
       where: {
@@ -572,6 +586,12 @@ export const updateResult = async (req, res) => {
         id: resultId,
       },
     });
+
+    if (!existingResult) {
+      return res.status(404).json({
+        message: "Result not found",
+      });
+    }
 
     const teacher = await prisma.teacher.findUnique({
       where: {
