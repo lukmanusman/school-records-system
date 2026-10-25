@@ -15,6 +15,8 @@ import SubjectsView from '../views/SubjectsView.vue'
 import ClassSubjectsView from '../views/ClassSubjectsView.vue'
 import TeacherAssignmentsView from '../views/TeacherAssignmentsView.vue'
 import ResultsView from '../views/ResultsView.vue'
+import ResultPreviewView from '../views/ResultPreviewView.vue'
+import StudentResultPreviewView from '../views/StudentResultPreviewView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -92,10 +94,12 @@ const router = createRouter({
           name: 'teacher-assignments',
           component: TeacherAssignmentsView,
         },
+        { path: 'results/entry', name: 'results-entry', component: ResultsView },
+        { path: 'results/preview', name: 'results-preview', component: ResultPreviewView },
         {
-          path: 'results',
-          name: 'results',
-          component: ResultsView,
+          path: 'results/students/:studentId',
+          name: 'student-result-preview',
+          component: StudentResultPreviewView,
         },
       ],
     },

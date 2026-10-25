@@ -1,3 +1,13 @@
+<script setup>
+import { computed } from 'vue'
+import { useAuth } from '../../composables/useAuth.js'
+
+const { user } = useAuth()
+
+const isStudent = computed(() => user.value?.role === 'STUDENT')
+const canManageResults = computed(() => ['ADMIN', 'TEACHER'].includes(user.value?.role))
+</script>
+
 <template>
   <aside>
     <h2>School Records</h2>
@@ -13,7 +23,14 @@
 
       <RouterLink to="/subjects"> Subjects </RouterLink>
 
-      <RouterLink to="/results"> Results </RouterLink>
+      <div>
+        <RouterLink :to="isStudent ? '/results/student' : '/results/entry'"> Result </RouterLink>
+
+        <div v-if="canManageResults">
+          <RouterLink to="/results/entry"> Entry </RouterLink>
+          <RouterLink to="/results/preview"> Preview </RouterLink>
+        </div>
+      </div>
 
       <RouterLink to="/promotions"> Promotions </RouterLink>
 
