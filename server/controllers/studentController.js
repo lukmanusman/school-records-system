@@ -3,26 +3,130 @@ import { formatTitleCase } from "../utils/formatText.js";
 
 export const getStudents = async (req, res) => {
   try {
-    const students = await prisma.student.findMany({
-      include: {
-        class: true,
-        user: {
-          select: {
-            profileImageUrl: true,
+    const { academicSessionId, termId } = req.query;
+
+    const hasSessionFilter = academicSessionId !== undefined;
+    const hasTermFilter = termId !== undefined;
+
+    if (hasSessionFilter !== hasTermFilter) {
+      return res.status(400).json({
+        message: "Both academicSessionId and termId are required together",
+      });
+    }
+
+    let students;
+
+    if (hasSessionFilter && hasTermFilter) {
+      const sessionId = Number(academicSessionId);
+      const selectedTermId = Number(termId);
+
+      if (
+        !Number.isInteger(sessionId) ||
+        sessionId < 1 ||
+        !Number.isInteger(selectedTermId) ||
+        selectedTermId < 1
+      ) {
+        return res.status(400).json({
+          message: "Invalid academic session ID or term ID",
+        });
+      }
+
+      const selectedTerm = await prisma.term.findFirst({
+        where: {
+          id: selectedTermId,
+          academicSessionId: sessionId,
+        },
+      });
+
+      if (!selectedTerm) {
+        return res.status(400).json({
+          message:
+            "The selected term does not belong to the selected academic session",
+        });
+      }
+
+      const termOrder = ["First Term", "Second Term", "Third Term"];
+
+      const selectedTermIndex = termOrder.indexOf(selectedTerm.name);
+
+      if (selectedTermIndex === -1) {
+        return res.status(400).json({
+          message: "The selected term has an unsupported name",
+        });
+      }
+
+      const eligibleTerms = await prisma.term.findMany({
+        where: {
+          academicSessionId: sessionId,
+          name: {
+            in: termOrder.slice(0, selectedTermIndex + 1),
           },
         },
-        enrollment: {
-          include: {
-            academicSession: true,
-            entryTerm: true,
-            entryClass: true,
+        select: {
+          id: true,
+        },
+      });
+
+      const placements = await prisma.studentClassPlacement.findMany({
+        where: {
+          academicSessionId: sessionId,
+          startingTermId: {
+            in: eligibleTerms.map((term) => term.id),
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        include: {
+          class: true,
+          student: {
+            include: {
+              user: {
+                select: {
+                  profileImageUrl: true,
+                },
+              },
+              enrollment: {
+                include: {
+                  academicSession: true,
+                  entryTerm: true,
+                  entryClass: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          student: {
+            createdAt: "desc",
+          },
+        },
+      });
+
+      students = placements.map((placement) => ({
+        ...placement.student,
+        classId: placement.classId,
+        class: placement.class,
+      }));
+    } else {
+      students = await prisma.student.findMany({
+        include: {
+          class: true,
+          user: {
+            select: {
+              profileImageUrl: true,
+            },
+          },
+          enrollment: {
+            include: {
+              academicSession: true,
+              entryTerm: true,
+              entryClass: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+    }
 
     return res.status(200).json(students);
   } catch (error) {

@@ -134,9 +134,7 @@ const loadReferenceData = async () => {
     academicSessions.value = await getAcademicSessions()
 
     if (!isStudent.value) {
-      const [studentsData, subjectsData] = await Promise.all([getStudents(), getSubjects()])
-
-      students.value = studentsData
+      const subjectsData = await getSubjects()
       subjects.value = subjectsData
     }
 
@@ -193,6 +191,28 @@ watch(formStudentId, () => {
   // Clear the selected subject whenever the student changes,
   // because the student's class determines eligible subjects.
   formSubjectId.value = ''
+})
+
+watch([formSessionId, formTermId], async ([sessionId, termId]) => {
+  formStudentId.value = ''
+  formSubjectId.value = ''
+  students.value = []
+
+  if (!sessionId || !termId || isStudent.value) {
+    return
+  }
+
+  isLoadingReferences.value = true
+  createErrorMessage.value = ''
+
+  try {
+    students.value = await getStudents(sessionId, termId)
+  } catch (error) {
+    console.error('Error loading students for selected period:', error)
+    createErrorMessage.value = error.message
+  } finally {
+    isLoadingReferences.value = false
+  }
 })
 
 const resetFilters = async () => {

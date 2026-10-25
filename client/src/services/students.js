@@ -1,10 +1,20 @@
 import API_BASE_URL from './api.js'
 import { getToken } from './authStorage.js'
 
-export const getStudents = async () => {
+export const getStudents = async (academicSessionId, termId) => {
   const token = getToken()
 
-  const response = await fetch(`${API_BASE_URL}/students`, {
+  const params = new URLSearchParams()
+
+  if (academicSessionId !== undefined && termId !== undefined) {
+    params.set('academicSessionId', academicSessionId)
+    params.set('termId', termId)
+  }
+
+  const queryString = params.toString()
+  const url = queryString ? `${API_BASE_URL}/students?${queryString}` : `${API_BASE_URL}/students`
+
+  const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
