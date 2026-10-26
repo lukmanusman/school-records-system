@@ -97,7 +97,7 @@ const router = createRouter({
         { path: 'results/entry', name: 'results-entry', component: ResultsView },
         { path: 'results/preview', name: 'results-preview', component: ResultPreviewView },
         {
-          path: 'results/students/:studentId',
+          path: 'results/student',
           name: 'student-result-preview',
           component: StudentResultPreviewView,
         },
