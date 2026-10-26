@@ -361,8 +361,14 @@ export const createResult = async (req, res) => {
 
 export const getResults = async (req, res) => {
   try {
-    const { studentId, subjectId, teacherId, academicSessionId, termId } =
-      req.query;
+    const {
+      studentId,
+      subjectId,
+      teacherId,
+      academicSessionId,
+      termId,
+      classId,
+    } = req.query;
 
     const where = {};
 
@@ -424,6 +430,7 @@ export const getResults = async (req, res) => {
         teacherId,
         academicSessionId,
         termId,
+        classId,
       };
 
       for (const [field, value] of Object.entries(filters)) {

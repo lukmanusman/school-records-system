@@ -5,6 +5,8 @@ import { useAuth } from '../composables/useAuth.js'
 import { getResults, createResult, updateResult } from '../services/results.js'
 import { getStudents } from '../services/students.js'
 import { getSubjects } from '../services/subjects.js'
+import { getClassSubjects } from '../services/classSubjects.js'
+import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
 import { getTeacherAssignments } from '../services/teacherAssignments.js'
@@ -20,11 +22,14 @@ const subjects = ref([])
 const academicSessions = ref([])
 const terms = ref([])
 const teacherAssignments = ref([])
+const classSubjects = ref([])
+const classes = ref([])
 
 const filterStudentId = ref('')
 const filterSubjectId = ref('')
 const filterSessionId = ref('')
 const filterTermId = ref('')
+const filterClassId = ref('')
 
 // Result-entry form
 const formStudentId = ref('')
@@ -91,6 +96,18 @@ const subjectsForSelectedStudent = computed(() => {
     .map((assignment) => assignment.subject)
 })
 
+const classesForFilter = computed(() => {
+  return classes.value
+})
+
+const studentsForFilter = computed(() => {
+  if (!filterClassId.value) {
+    return students.value
+  }
+
+  return students.value.filter((student) => String(student.classId) === String(filterClassId.value))
+})
+
 const loadResults = async () => {
   isLoading.value = true
   errorMessage.value = ''
@@ -118,6 +135,10 @@ const loadResults = async () => {
       filters.termId = filterTermId.value
     }
 
+    if (filterClassId.value) {
+      filters.classId = filterClassId.value
+    }
+
     results.value = await getResults(filters)
   } catch (error) {
     console.error('Error loading results:', error)
@@ -137,6 +158,9 @@ const loadReferenceData = async () => {
       const subjectsData = await getSubjects()
       subjects.value = subjectsData
     }
+
+    classSubjects.value = await getClassSubjects()
+    classes.value = await getClasses()
 
     if (isTeacher.value) {
       teacherAssignments.value = await getTeacherAssignments()
@@ -213,6 +237,10 @@ watch([formSessionId, formTermId], async ([sessionId, termId]) => {
   } finally {
     isLoadingReferences.value = false
   }
+})
+
+watch([filterStudentId, filterSubjectId, filterSessionId, filterTermId, filterClassId], () => {
+  loadResults()
 })
 
 const resetFilters = async () => {
@@ -521,6 +549,20 @@ onMounted(async () => {
             <option value="">All sessions</option>
             <option v-for="session in academicSessions" :key="session.id" :value="session.id">
               {{ session.name }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label for="classFilter">Class</label>
+          <select id="classFilter" v-model="filterClassId">
+            <option value="">All classes</option>
+            <option
+              v-for="schoolClass in classesForFilter"
+              :key="schoolClass.id"
+              :value="schoolClass.id"
+            >
+              {{ schoolClass.name }}
             </option>
           </select>
         </div>
