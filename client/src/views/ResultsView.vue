@@ -18,6 +18,7 @@ const isTeacher = computed(() => user.value?.role === 'TEACHER')
 
 const results = ref([])
 const students = ref([])
+const gridStudents = ref([])
 const subjects = ref([])
 const academicSessions = ref([])
 const terms = ref([])
@@ -99,6 +100,59 @@ const subjectsForSelectedStudent = computed(() => {
 const classesForFilter = computed(() => {
   return classes.value
 })
+
+const subjectsForSelectedClass = computed(() => {
+  if (!filterClassId.value) {
+    return []
+  }
+
+  return classSubjects.value.filter(
+    (classSubject) => Number(classSubject.classId) === Number(filterClassId.value),
+  )
+})
+
+const studentsForGrid = computed(() => {
+  if (!filterClassId.value) {
+    return []
+  }
+
+  return gridStudents.value.filter(
+    (student) => Number(student.classId) === Number(filterClassId.value),
+  )
+})
+
+const resultLookup = computed(() => {
+  const lookup = new Map()
+
+  results.value.forEach((result) => {
+    const key = `${result.studentId}-${result.subjectId}`
+    lookup.set(key, result)
+  })
+
+  return lookup
+})
+
+const isGridReady = computed(() => {
+  return Boolean(filterSessionId.value && filterTermId.value && filterClassId.value)
+})
+
+const getResultForCell = (studentId, subjectId) => {
+  const key = `${studentId}-${subjectId}`
+  return resultLookup.value.get(key) || null
+}
+
+const canEditSubject = (subjectId) => {
+  if (!isTeacher.value || !filterClassId.value) {
+    return false
+  }
+
+  return teacherAssignments.value.some(
+    (assignment) =>
+      assignment.teacher?.userId === user.value?.id &&
+      Number(assignment.classId) === Number(filterClassId.value) &&
+      Number(assignment.subjectId) === Number(subjectId),
+  )
+}
 
 const studentsForFilter = computed(() => {
   if (!filterClassId.value) {
@@ -241,6 +295,26 @@ watch([formSessionId, formTermId], async ([sessionId, termId]) => {
 
 watch([filterStudentId, filterSubjectId, filterSessionId, filterTermId, filterClassId], () => {
   loadResults()
+})
+
+watch([filterSessionId, filterTermId], async ([sessionId, termId]) => {
+  gridStudents.value = []
+
+  if (!sessionId || !termId) {
+    return
+  }
+
+  isLoadingReferences.value = true
+  errorMessage.value = ''
+
+  try {
+    gridStudents.value = await getStudents(sessionId, termId)
+  } catch (error) {
+    console.error('Error loading students for result entry:', error)
+    errorMessage.value = error.message
+  } finally {
+    isLoadingReferences.value = false
+  }
 })
 
 const resetFilters = async () => {
