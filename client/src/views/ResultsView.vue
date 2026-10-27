@@ -17,6 +17,8 @@ const isStudent = computed(() => user.value?.role === 'STUDENT')
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
 
 const results = ref([])
+const gridScores = ref({})
+const savingGridCell = ref(null)
 const students = ref([])
 const gridStudents = ref([])
 const subjects = ref([])
@@ -65,6 +67,8 @@ const isLoadingReferences = ref(false)
 const isLoadingTerms = ref(false)
 
 const errorMessage = ref('')
+const gridSaveErrorMessage = ref('')
+const gridSaveSuccessMessage = ref('')
 
 const studentsForForm = computed(() => {
   if (!isTeacher.value) {
@@ -141,6 +145,161 @@ const getResultForCell = (studentId, subjectId) => {
   return resultLookup.value.get(key) || null
 }
 
+const getGridTotal = (score) => {
+  if (!score) {
+    return 'ABS'
+  }
+
+  if (score.caStatus === 'ABSENT' && score.examStatus === 'ABSENT') {
+    return 'ABS'
+  }
+
+  const caScore = score.caStatus === 'ABSENT' ? 0 : Number(score.caScore)
+  const examScore = score.examStatus === 'ABSENT' ? 0 : Number(score.examScore)
+
+  return caScore + examScore
+}
+
+const getGridGrade = (score) => {
+  const total = getGridTotal(score)
+
+  if (total === 'ABS') {
+    return 'ABS'
+  }
+
+  if (total >= 70) return 'A'
+  if (total >= 60) return 'B'
+  if (total >= 50) return 'C'
+  if (total >= 45) return 'D'
+  if (total >= 40) return 'E'
+
+  return 'F'
+}
+
+const initializeGridScores = () => {
+  const scores = {}
+
+  studentsForGrid.value.forEach((student) => {
+    subjectsForSelectedClass.value.forEach((classSubject) => {
+      const subjectId = classSubject.subjectId
+      const result = getResultForCell(student.id, subjectId)
+
+      const key = `${student.id}-${subjectId}`
+
+      scores[key] = {
+        resultId: result?.id ?? null,
+        caStatus: result?.caStatus ?? 'PRESENT',
+        caScore: result?.caScore ?? 0,
+        examStatus: result?.examStatus ?? 'PRESENT',
+        examScore: result?.examScore ?? 0,
+        status: result?.status ?? 'DRAFT',
+      }
+    })
+  })
+
+  gridScores.value = scores
+}
+
+const updateGridScore = (studentId, subjectId, field, value) => {
+  const key = `${studentId}-${subjectId}`
+
+  if (!gridScores.value[key]) {
+    return
+  }
+
+  gridScores.value[key] = {
+    ...gridScores.value[key],
+    [field]: value,
+  }
+}
+
+const saveGridCell = async (student, classSubject) => {
+  const subjectId = classSubject.subjectId
+  const key = `${student.id}-${subjectId}`
+  const score = gridScores.value[key]
+
+  if (!score || !canEditSubject(subjectId)) {
+    return
+  }
+
+  if (score.status === 'APPROVED') {
+    gridSaveErrorMessage.value = 'Approved results cannot be edited.'
+    return
+  }
+
+  gridSaveErrorMessage.value = ''
+  gridSaveSuccessMessage.value = ''
+
+  if (
+    score.caStatus === 'PRESENT' &&
+    (score.caScore === '' ||
+      score.caScore === null ||
+      !Number.isFinite(Number(score.caScore)) ||
+      Number(score.caScore) < 0 ||
+      Number(score.caScore) > 40)
+  ) {
+    gridSaveErrorMessage.value = 'CA score must be between 0 and 40.'
+    return
+  }
+
+  if (
+    score.examStatus === 'PRESENT' &&
+    (score.examScore === '' ||
+      score.examScore === null ||
+      !Number.isFinite(Number(score.examScore)) ||
+      Number(score.examScore) < 0 ||
+      Number(score.examScore) > 60)
+  ) {
+    gridSaveErrorMessage.value = 'Examination score must be between 0 and 60.'
+    return
+  }
+
+  const resultData = {
+    studentId: Number(student.id),
+    subjectId: Number(subjectId),
+    academicSessionId: Number(filterSessionId.value),
+    termId: Number(filterTermId.value),
+
+    caStatus: score.caStatus,
+    caScore: score.caStatus === 'ABSENT' ? null : Number(score.caScore),
+
+    examStatus: score.examStatus,
+    examScore: score.examStatus === 'ABSENT' ? null : Number(score.examScore),
+  }
+
+  savingGridCell.value = key
+
+  try {
+    let response
+
+    if (score.resultId) {
+      response = await updateResult(score.resultId, resultData)
+    } else {
+      response = await createResult(resultData)
+    }
+
+    gridSaveSuccessMessage.value = response.message || 'Result saved successfully.'
+
+    await loadResults()
+
+    const savedResult = results.value.find(
+      (result) =>
+        Number(result.studentId) === Number(student.id) &&
+        Number(result.subjectId) === Number(subjectId),
+    )
+
+    if (savedResult && gridScores.value[key]) {
+      gridScores.value[key].resultId = savedResult.id
+      gridScores.value[key].status = savedResult.status
+    }
+  } catch (error) {
+    console.error('Error saving grid result:', error)
+    gridSaveErrorMessage.value = error.message
+  } finally {
+    savingGridCell.value = null
+  }
+}
+
 const canEditSubject = (subjectId) => {
   if (!isTeacher.value || !filterClassId.value) {
     return false
@@ -152,6 +311,10 @@ const canEditSubject = (subjectId) => {
       Number(assignment.classId) === Number(filterClassId.value) &&
       Number(assignment.subjectId) === Number(subjectId),
   )
+
+  console.log('Current logged-in user:', user.value)
+
+  console.log('Teacher assignments:', teacherAssignments.value)
 }
 
 const studentsForFilter = computed(() => {
@@ -317,6 +480,19 @@ watch([filterSessionId, filterTermId], async ([sessionId, termId]) => {
   }
 })
 
+watch(
+  [gridStudents, results, filterClassId],
+  () => {
+    if (!isGridReady.value) {
+      gridScores.value = {}
+      return
+    }
+
+    initializeGridScores()
+  },
+  { deep: true },
+)
+
 const resetFilters = async () => {
   filterStudentId.value = ''
   filterSubjectId.value = ''
@@ -456,50 +632,15 @@ onMounted(async () => {
     <h1>Results</h1>
 
     <section v-if="isTeacher">
-      <h2>Enter Student Result</h2>
+      <h2>Class Result Entry</h2>
 
-      <p v-if="studentsForForm.length === 0 && !isLoadingReferences">
-        No students found in your assigned classes.
-      </p>
+      <p>Select an academic session, term, and class to load the result-entry grid.</p>
 
-      <form @submit.prevent="handleCreateResult">
+      <form class="grid-filters" @submit.prevent="loadResults">
         <div>
-          <label for="formStudentId">Student</label>
-          <select id="formStudentId" v-model="formStudentId" required>
-            <option value="" disabled>Select a student</option>
-            <option v-for="student in studentsForForm" :key="student.id" :value="student.id">
-              {{ student.admissionNumber }} — {{ student.firstName }} {{ student.surname }}
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label for="formSubjectId">Subject</label>
-          <select
-            id="formSubjectId"
-            v-model="formSubjectId"
-            :disabled="!formStudentId || subjectsForSelectedStudent.length === 0"
-            required
-          >
-            <option value="" disabled>Select a subject</option>
-            <option
-              v-for="subject in subjectsForSelectedStudent"
-              :key="subject.id"
-              :value="subject.id"
-            >
-              {{ subject.name }}
-            </option>
-          </select>
-
-          <small v-if="formStudentId && subjectsForSelectedStudent.length === 0">
-            No subjects are assigned to you for this student's class.
-          </small>
-        </div>
-
-        <div>
-          <label for="formSessionId">Academic Session</label>
-          <select id="formSessionId" v-model="formSessionId" required>
-            <option value="" disabled>Select a session</option>
+          <label for="gridSessionFilter">Academic Session</label>
+          <select id="gridSessionFilter" v-model="filterSessionId" required>
+            <option value="">Select session</option>
             <option v-for="session in academicSessions" :key="session.id" :value="session.id">
               {{ session.name }}
             </option>
@@ -507,88 +648,78 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label for="formTermId">Term</label>
+          <label for="gridTermFilter">Term</label>
           <select
-            id="formTermId"
-            v-model="formTermId"
-            :disabled="!formSessionId || formTerms.length === 0"
+            id="gridTermFilter"
+            v-model="filterTermId"
+            :disabled="!filterSessionId || isLoadingTerms"
             required
           >
-            <option value="" disabled>Select a term</option>
-            <option v-for="term in formTerms" :key="term.id" :value="term.id">
+            <option value="">Select term</option>
+            <option v-for="term in terms" :key="term.id" :value="term.id">
               {{ term.name }}
             </option>
           </select>
         </div>
 
-        <fieldset>
-          <legend>Continuous Assessment (CA) — 40 marks</legend>
-
-          <label for="formCaStatus">CA Status</label>
-          <select id="formCaStatus" v-model="formCaStatus" required>
-            <option value="PRESENT">Present</option>
-            <option value="ABSENT">Absent</option>
+        <div>
+          <label for="gridClassFilter">Class</label>
+          <select id="gridClassFilter" v-model="filterClassId" required>
+            <option value="">Select class</option>
+            <option
+              v-for="schoolClass in classesForFilter"
+              :key="schoolClass.id"
+              :value="schoolClass.id"
+            >
+              {{ schoolClass.name }}
+            </option>
           </select>
-
-          <div v-if="formCaStatus === 'PRESENT'">
-            <label for="formCaScore">CA Score</label>
-            <input
-              id="formCaScore"
-              v-model.number="formCaScore"
-              type="number"
-              min="0"
-              max="40"
-              step="any"
-              required
-            />
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Examination — 60 marks</legend>
-
-          <label for="formExamStatus">Examination Status</label>
-          <select id="formExamStatus" v-model="formExamStatus" required>
-            <option value="PRESENT">Present</option>
-            <option value="ABSENT">Absent</option>
-          </select>
-
-          <div v-if="formExamStatus === 'PRESENT'">
-            <label for="formExamScore">Examination Score</label>
-            <input
-              id="formExamScore"
-              v-model.number="formExamScore"
-              type="number"
-              min="0"
-              max="60"
-              step="any"
-              required
-            />
-          </div>
-        </fieldset>
-
-        <button
-          type="submit"
-          :disabled="
-            isCreating ||
-            isLoadingReferences ||
-            !formStudentId ||
-            !formSubjectId ||
-            !formSessionId ||
-            !formTermId
-          "
-        >
-          {{ isCreating ? 'Saving Result...' : 'Save Result' }}
-        </button>
+        </div>
       </form>
 
-      <p v-if="createSuccessMessage" class="success-message">
-        {{ createSuccessMessage }}
-      </p>
+      <p v-if="isLoadingReferences">Loading reference data...</p>
 
-      <p v-if="createErrorMessage" class="error-message">
-        {{ createErrorMessage }}
-      </p>
+      <p v-else-if="!isGridReady">Select all three filters to display the result-entry grid.</p>
+
+      <div v-if="isGridReady" class="result-grid-wrapper">
+        <table class="result-grid">
+          <thead>
+            <tr>
+              <th rowspan="2">Student</th>
+
+              <th
+                v-for="classSubject in subjectsForSelectedClass"
+                :key="classSubject.id"
+                colspan="2"
+              >
+                {{ classSubject.subject.name }}
+              </th>
+            </tr>
+
+            <tr>
+              <template v-for="classSubject in subjectsForSelectedClass" :key="classSubject.id">
+                <th>CA (40)</th>
+                <th>Exam (60)</th>
+              </template>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="student in studentsForGrid" :key="student.id">
+              <td>{{ student.firstName }} {{ student.surname }}</td>
+
+              <template v-for="classSubject in subjectsForSelectedClass" :key="classSubject.id">
+                <td>
+                  {{ getGridTotal(gridScores[`${student.id}-${classSubject.subjectId}`]) }}
+                </td>
+                <td>
+                  {{ getGridGrade(gridScores[`${student.id}-${classSubject.subjectId}`]) }}
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section>
@@ -663,164 +794,6 @@ onMounted(async () => {
           <button type="button" :disabled="isLoading" @click="resetFilters">Reset</button>
         </div>
       </form>
-    </section>
-
-    <section>
-      <h2>Result Records</h2>
-
-      <p v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
-      </p>
-
-      <p v-if="updateSuccessMessage" class="success-message">
-        {{ updateSuccessMessage }}
-      </p>
-
-      <p v-if="updateErrorMessage" class="error-message">
-        {{ updateErrorMessage }}
-      </p>
-
-      <p v-if="isLoading">Loading results...</p>
-
-      <p v-else-if="!errorMessage && results.length === 0">
-        No results found for the selected filters.
-      </p>
-
-      <div v-else-if="!errorMessage" class="table-container">
-        <p>Total results: {{ results.length }}</p>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Admission No.</th>
-              <th>Student</th>
-              <th>Subject</th>
-              <th>Session</th>
-              <th>Term</th>
-              <th>CA / 40</th>
-              <th>Exam / 60</th>
-              <th>Total / 100</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <template v-for="result in results" :key="result.id">
-              <tr>
-                <td>{{ result.student.admissionNumber }}</td>
-
-                <td>
-                  {{ result.student.firstName }}
-                  {{ result.student.surname }}
-                </td>
-
-                <td>{{ result.subject.name }}</td>
-                <td>{{ result.academicSession.name }}</td>
-                <td>{{ result.term.name }}</td>
-
-                <td>
-                  {{ result.caStatus === 'ABSENT' ? 'Absent' : result.caScore }}
-                </td>
-
-                <td>
-                  {{ result.examStatus === 'ABSENT' ? 'Absent' : result.examScore }}
-                </td>
-
-                <td>
-                  {{ result.totalScore === 'ABS' ? 'Absent' : result.totalScore }}
-                </td>
-
-                <td>{{ result.status }}</td>
-
-                <td>
-                  <button
-                    v-if="canEditResult(result) && editingResultId !== result.id"
-                    type="button"
-                    @click="startEditingResult(result)"
-                  >
-                    Edit
-                  </button>
-                </td>
-              </tr>
-
-              <tr v-if="editingResultId === result.id">
-                <td colspan="10">
-                  <h3>
-                    Edit Result:
-                    {{ result.student.firstName }} {{ result.student.surname }} —
-                    {{ result.subject.name }}
-                  </h3>
-
-                  <form @submit.prevent="handleUpdateResult">
-                    <fieldset>
-                      <legend>Continuous Assessment (CA) — 40 marks</legend>
-
-                      <label :for="`edit-ca-status-${result.id}`"> CA Status </label>
-
-                      <select :id="`edit-ca-status-${result.id}`" v-model="editCaStatus" required>
-                        <option value="PRESENT">Present</option>
-                        <option value="ABSENT">Absent</option>
-                      </select>
-
-                      <div v-if="editCaStatus === 'PRESENT'">
-                        <label :for="`edit-ca-score-${result.id}`"> CA Score </label>
-
-                        <input
-                          :id="`edit-ca-score-${result.id}`"
-                          v-model.number="editCaScore"
-                          type="number"
-                          min="0"
-                          max="40"
-                          step="any"
-                          required
-                        />
-                      </div>
-                    </fieldset>
-
-                    <fieldset>
-                      <legend>Examination — 60 marks</legend>
-
-                      <label :for="`edit-exam-status-${result.id}`"> Examination Status </label>
-
-                      <select
-                        :id="`edit-exam-status-${result.id}`"
-                        v-model="editExamStatus"
-                        required
-                      >
-                        <option value="PRESENT">Present</option>
-                        <option value="ABSENT">Absent</option>
-                      </select>
-
-                      <div v-if="editExamStatus === 'PRESENT'">
-                        <label :for="`edit-exam-score-${result.id}`"> Examination Score </label>
-
-                        <input
-                          :id="`edit-exam-score-${result.id}`"
-                          v-model.number="editExamScore"
-                          type="number"
-                          min="0"
-                          max="60"
-                          step="any"
-                          required
-                        />
-                      </div>
-                    </fieldset>
-
-                    <button type="submit" :disabled="isUpdating">
-                      {{ isUpdating ? 'Saving...' : 'Save Changes' }}
-                    </button>
-
-                    <button type="button" :disabled="isUpdating" @click="cancelEditingResult">
-                      Cancel
-                    </button>
-                  </form>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
     </section>
   </main>
 </template>
