@@ -29,13 +29,17 @@ export const createResult = async (req, res) => {
       studentId === undefined ||
       subjectId === undefined ||
       academicSessionId === undefined ||
-      termId === undefined ||
-      caStatus === undefined ||
-      examStatus === undefined
+      termId === undefined
     ) {
       return res.status(400).json({
-        message:
-          "Student, subject, session, term, CA status, and exam status are required",
+        message: "Student, subject, session, and term are required",
+      });
+    }
+
+    // At least one assessment must be supplied.
+    if (caStatus === undefined && examStatus === undefined) {
+      return res.status(400).json({
+        message: "At least one assessment must be recorded",
       });
     }
 
@@ -78,12 +82,58 @@ export const createResult = async (req, res) => {
       teacherIdNumber = teacher.id;
     }
 
-    // Validate scores
-    // Validate assessment statuses
-    if (!["PRESENT", "ABSENT"].includes(caStatus)) {
-      return res.status(400).json({
-        message: "CA status must be PRESENT or ABSENT",
-      });
+    // Validate CA only when CA is supplied.
+    if (caStatus !== undefined) {
+      if (!["PRESENT", "ABSENT"].includes(caStatus)) {
+        return res.status(400).json({
+          message: "CA status must be PRESENT or ABSENT",
+        });
+      }
+
+      if (caStatus === "PRESENT") {
+        if (typeof caScore !== "number") {
+          return res.status(400).json({
+            message: "CA score must be a number when CA status is PRESENT",
+          });
+        }
+
+        if (caScore < 0 || caScore > 40) {
+          return res.status(400).json({
+            message: "CA score must be between 0 and 40",
+          });
+        }
+      } else if (caScore !== null && caScore !== undefined) {
+        return res.status(400).json({
+          message: "CA score must be null when CA status is ABSENT",
+        });
+      }
+    }
+
+    // Validate Exam only when Exam is supplied.
+    if (examStatus !== undefined) {
+      if (!["PRESENT", "ABSENT"].includes(examStatus)) {
+        return res.status(400).json({
+          message: "Exam status must be PRESENT or ABSENT",
+        });
+      }
+
+      if (examStatus === "PRESENT") {
+        if (typeof examScore !== "number") {
+          return res.status(400).json({
+            message: "Exam score must be a number when exam status is PRESENT",
+          });
+        }
+
+        if (examScore < 0 || examScore > 60) {
+          return res.status(400).json({
+            message: "Exam score must be between 0 and 60",
+          });
+        }
+      } else if (examScore !== null && examScore !== undefined) {
+        return res.status(400).json({
+          message: "Exam score must be null when exam status is ABSENT",
+        });
+      }
     }
 
     if (!["PRESENT", "ABSENT"].includes(examStatus)) {
@@ -317,10 +367,15 @@ export const createResult = async (req, res) => {
           classId: student.classId,
           academicSessionId: academicSessionIdNumber,
           termId: termIdNumber,
-          caScore: caStatus === "ABSENT" ? null : caScore,
-          caStatus,
-          examScore: examStatus === "ABSENT" ? null : examScore,
-          examStatus,
+          ...(caStatus !== undefined && {
+            caScore: caStatus === "ABSENT" ? null : caScore,
+            caStatus,
+          }),
+
+          ...(examStatus !== undefined && {
+            examScore: examStatus === "ABSENT" ? null : examScore,
+            examStatus,
+          }),
         },
         include: {
           student: true,

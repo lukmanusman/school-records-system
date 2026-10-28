@@ -188,10 +188,8 @@ const initializeGridScores = () => {
 
       scores[key] = {
         resultId: result?.id ?? null,
-        caStatus: result?.caStatus ?? 'PRESENT',
-        caScore: result?.caScore ?? 0,
-        examStatus: result?.examStatus ?? 'PRESENT',
-        examScore: result?.examScore ?? 0,
+        caScore: result?.caStatus === 'ABSENT' ? '-' : (result?.caScore ?? ''),
+        examScore: result?.examStatus === 'ABSENT' ? '-' : (result?.examScore ?? ''),
         status: result?.status ?? 'DRAFT',
       }
     })
@@ -213,7 +211,7 @@ const updateGridScore = (studentId, subjectId, field, value) => {
   }
 }
 
-const saveGridCell = async (student, classSubject) => {
+const saveGridCell = async (student, classSubject, assessment) => {
   const subjectId = classSubject.subjectId
   const key = `${student.id}-${subjectId}`
   const score = gridScores.value[key]
@@ -227,47 +225,45 @@ const saveGridCell = async (student, classSubject) => {
     return
   }
 
+  const inputValue = String(assessment === 'ca' ? score.caScore : score.examScore).trim()
+
+  // Blank means this assessment has not been recorded.
+  if (inputValue === '') {
+    return
+  }
+
+  const isAbsent = inputValue === '-'
+  const numericScore = Number(inputValue)
+  const maxScore = assessment === 'ca' ? 40 : 60
+  const assessmentName = assessment === 'ca' ? 'CA' : 'Examination'
+
+  if (
+    !isAbsent &&
+    (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > maxScore)
+  ) {
+    gridSaveErrorMessage.value = `${assessmentName} score must be between 0 and ${maxScore}.`
+    return
+  }
+
   gridSaveErrorMessage.value = ''
   gridSaveSuccessMessage.value = ''
-
-  if (
-    score.caStatus === 'PRESENT' &&
-    (score.caScore === '' ||
-      score.caScore === null ||
-      !Number.isFinite(Number(score.caScore)) ||
-      Number(score.caScore) < 0 ||
-      Number(score.caScore) > 40)
-  ) {
-    gridSaveErrorMessage.value = 'CA score must be between 0 and 40.'
-    return
-  }
-
-  if (
-    score.examStatus === 'PRESENT' &&
-    (score.examScore === '' ||
-      score.examScore === null ||
-      !Number.isFinite(Number(score.examScore)) ||
-      Number(score.examScore) < 0 ||
-      Number(score.examScore) > 60)
-  ) {
-    gridSaveErrorMessage.value = 'Examination score must be between 0 and 60.'
-    return
-  }
 
   const resultData = {
     studentId: Number(student.id),
     subjectId: Number(subjectId),
     academicSessionId: Number(filterSessionId.value),
     termId: Number(filterTermId.value),
-
-    caStatus: score.caStatus,
-    caScore: score.caStatus === 'ABSENT' ? null : Number(score.caScore),
-
-    examStatus: score.examStatus,
-    examScore: score.examStatus === 'ABSENT' ? null : Number(score.examScore),
   }
 
-  savingGridCell.value = key
+  if (assessment === 'ca') {
+    resultData.caStatus = isAbsent ? 'ABSENT' : 'PRESENT'
+    resultData.caScore = isAbsent ? null : numericScore
+  } else {
+    resultData.examStatus = isAbsent ? 'ABSENT' : 'PRESENT'
+    resultData.examScore = isAbsent ? null : numericScore
+  }
+
+  savingGridCell.value = `${key}-${assessment}`
 
   try {
     let response
@@ -278,20 +274,9 @@ const saveGridCell = async (student, classSubject) => {
       response = await createResult(resultData)
     }
 
-    gridSaveSuccessMessage.value = response.message || 'Result saved successfully.'
+    score.resultId = response.result?.id ?? score.resultId
 
-    await loadResults()
-
-    const savedResult = results.value.find(
-      (result) =>
-        Number(result.studentId) === Number(student.id) &&
-        Number(result.subjectId) === Number(subjectId),
-    )
-
-    if (savedResult && gridScores.value[key]) {
-      gridScores.value[key].resultId = savedResult.id
-      gridScores.value[key].status = savedResult.status
-    }
+    gridSaveSuccessMessage.value = `${assessmentName} saved successfully.`
   } catch (error) {
     console.error('Error saving grid result:', error)
     gridSaveErrorMessage.value = error.message
@@ -721,38 +706,26 @@ onMounted(async () => {
               <template v-for="classSubject in subjectsForSelectedClass" :key="classSubject.id">
                 <td>
                   <template v-if="canEditSubject(classSubject.subjectId)">
-                    <select
-                      v-model="gridScores[`${student.id}-${classSubject.subjectId}`].caStatus"
-                      :disabled="
-                        savingGridCell === `${student.id}-${classSubject.subjectId}` ||
-                        gridScores[`${student.id}-${classSubject.subjectId}`].status === 'APPROVED'
-                      "
-                    >
-                      <option value="PRESENT">Present</option>
-                      <option value="ABSENT">Absent</option>
-                    </select>
-
                     <input
-                      v-if="
-                        gridScores[`${student.id}-${classSubject.subjectId}`].caStatus === 'PRESENT'
-                      "
-                      v-model.number="gridScores[`${student.id}-${classSubject.subjectId}`].caScore"
-                      type="number"
-                      min="0"
-                      max="40"
-                      step="any"
+                      v-model="gridScores[`${student.id}-${classSubject.subjectId}`].caScore"
+                      type="text"
+                      inputmode="decimal"
+                      placeholder="Score / -"
                       class="score-input"
                       :disabled="
-                        savingGridCell === `${student.id}-${classSubject.subjectId}` ||
+                        savingGridCell === `${student.id}-${classSubject.subjectId}-ca` ||
                         gridScores[`${student.id}-${classSubject.subjectId}`].status === 'APPROVED'
                       "
+                      @blur="saveGridCell(student, classSubject, 'ca')"
                     />
-                    <span v-else>ABS</span>
+                    <small v-if="savingGridCell === `${student.id}-${classSubject.subjectId}-ca`">
+                      Saving...
+                    </small>
                   </template>
 
                   <template v-else>
                     {{
-                      gridScores[`${student.id}-${classSubject.subjectId}`].caStatus === 'ABSENT'
+                      gridScores[`${student.id}-${classSubject.subjectId}`].caScore === '-'
                         ? 'ABS'
                         : gridScores[`${student.id}-${classSubject.subjectId}`].caScore
                     }}
@@ -761,55 +734,26 @@ onMounted(async () => {
 
                 <td>
                   <template v-if="canEditSubject(classSubject.subjectId)">
-                    <select
-                      v-model="gridScores[`${student.id}-${classSubject.subjectId}`].examStatus"
-                      :disabled="
-                        savingGridCell === `${student.id}-${classSubject.subjectId}` ||
-                        gridScores[`${student.id}-${classSubject.subjectId}`].status === 'APPROVED'
-                      "
-                    >
-                      <option value="PRESENT">Present</option>
-                      <option value="ABSENT">Absent</option>
-                    </select>
-
                     <input
-                      v-if="
-                        gridScores[`${student.id}-${classSubject.subjectId}`].examStatus ===
-                        'PRESENT'
-                      "
-                      v-model.number="
-                        gridScores[`${student.id}-${classSubject.subjectId}`].examScore
-                      "
-                      type="number"
-                      min="0"
-                      max="60"
-                      step="any"
+                      v-model="gridScores[`${student.id}-${classSubject.subjectId}`].examScore"
+                      type="text"
+                      inputmode="decimal"
+                      placeholder="Score / -"
                       class="score-input"
                       :disabled="
-                        savingGridCell === `${student.id}-${classSubject.subjectId}` ||
+                        savingGridCell === `${student.id}-${classSubject.subjectId}-exam` ||
                         gridScores[`${student.id}-${classSubject.subjectId}`].status === 'APPROVED'
                       "
+                      @blur="saveGridCell(student, classSubject, 'exam')"
                     />
-
-                    <button
-                      type="button"
-                      :disabled="
-                        savingGridCell === `${student.id}-${classSubject.subjectId}` ||
-                        gridScores[`${student.id}-${classSubject.subjectId}`].status === 'APPROVED'
-                      "
-                      @click="saveGridCell(student, classSubject)"
-                    >
-                      {{
-                        savingGridCell === `${student.id}-${classSubject.subjectId}`
-                          ? 'Saving...'
-                          : 'Save'
-                      }}
-                    </button>
+                    <small v-if="savingGridCell === `${student.id}-${classSubject.subjectId}-exam`">
+                      Saving...
+                    </small>
                   </template>
 
                   <template v-else>
                     {{
-                      gridScores[`${student.id}-${classSubject.subjectId}`].examStatus === 'ABSENT'
+                      gridScores[`${student.id}-${classSubject.subjectId}`].examScore === '-'
                         ? 'ABS'
                         : gridScores[`${student.id}-${classSubject.subjectId}`].examScore
                     }}
