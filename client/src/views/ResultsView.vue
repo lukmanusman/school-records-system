@@ -726,7 +726,7 @@ onMounted(async () => {
                   <template v-else>
                     {{
                       gridScores[`${student.id}-${classSubject.subjectId}`].caScore === '-'
-                        ? 'ABS'
+                        ? '-'
                         : gridScores[`${student.id}-${classSubject.subjectId}`].caScore
                     }}
                   </template>
@@ -754,7 +754,7 @@ onMounted(async () => {
                   <template v-else>
                     {{
                       gridScores[`${student.id}-${classSubject.subjectId}`].examScore === '-'
-                        ? 'ABS'
+                        ? '-'
                         : gridScores[`${student.id}-${classSubject.subjectId}`].examScore
                     }}
                   </template>
