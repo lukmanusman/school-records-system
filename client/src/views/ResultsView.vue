@@ -228,16 +228,20 @@ const saveGridCell = async (student, classSubject, assessment) => {
   const inputValue = String(assessment === 'ca' ? score.caScore : score.examScore).trim()
 
   // Blank means this assessment has not been recorded.
-  if (inputValue === '') {
-    return
-  }
-
+  const isClearing = inputValue === ''
   const isAbsent = inputValue === '-'
   const numericScore = Number(inputValue)
   const maxScore = assessment === 'ca' ? 40 : 60
   const assessmentName = assessment === 'ca' ? 'CA' : 'Examination'
 
+  // Do not create a result when the teacher leaves a new field blank.
+  if (isClearing && !score.resultId) {
+    return
+  }
+
+  // Validate numeric scores only.
   if (
+    !isClearing &&
     !isAbsent &&
     (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > maxScore)
   ) {
@@ -257,10 +261,10 @@ const saveGridCell = async (student, classSubject, assessment) => {
 
   if (assessment === 'ca') {
     resultData.caStatus = isAbsent ? 'ABSENT' : 'PRESENT'
-    resultData.caScore = isAbsent ? null : numericScore
+    resultData.caScore = isAbsent ? null : isClearing ? null : numericScore
   } else {
     resultData.examStatus = isAbsent ? 'ABSENT' : 'PRESENT'
-    resultData.examScore = isAbsent ? null : numericScore
+    resultData.examScore = isAbsent ? null : isClearing ? null : numericScore
   }
 
   savingGridCell.value = `${key}-${assessment}`

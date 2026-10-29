@@ -136,50 +136,6 @@ export const createResult = async (req, res) => {
       }
     }
 
-    if (!["PRESENT", "ABSENT"].includes(examStatus)) {
-      return res.status(400).json({
-        message: "Exam status must be PRESENT or ABSENT",
-      });
-    }
-
-    // Validate CA score
-    if (caStatus === "PRESENT") {
-      if (typeof caScore !== "number") {
-        return res.status(400).json({
-          message: "CA score must be a number when CA status is PRESENT",
-        });
-      }
-
-      if (caScore < 0 || caScore > 40) {
-        return res.status(400).json({
-          message: "CA score must be between 0 and 40",
-        });
-      }
-    } else if (caScore !== null && caScore !== undefined) {
-      return res.status(400).json({
-        message: "CA score must be null when CA status is ABSENT",
-      });
-    }
-
-    // Validate exam score
-    if (examStatus === "PRESENT") {
-      if (typeof examScore !== "number") {
-        return res.status(400).json({
-          message: "Exam score must be a number when exam status is PRESENT",
-        });
-      }
-
-      if (examScore < 0 || examScore > 60) {
-        return res.status(400).json({
-          message: "Exam score must be between 0 and 60",
-        });
-      }
-    } else if (examScore !== null && examScore !== undefined) {
-      return res.status(400).json({
-        message: "Exam score must be null when exam status is ABSENT",
-      });
-    }
-
     // Check student
     const student = await prisma.student.findUnique({
       where: { id: studentIdNumber },
@@ -760,9 +716,9 @@ export const updateResult = async (req, res) => {
           });
         }
 
-        if (typeof caScore !== "number") {
+        if (caScore !== null && typeof caScore !== "number") {
           return res.status(400).json({
-            message: "CA score must be a number",
+            message: "CA score must be a number or null",
           });
         }
 
@@ -793,9 +749,9 @@ export const updateResult = async (req, res) => {
           });
         }
 
-        if (typeof examScore !== "number") {
+        if (examScore !== null && typeof examScore !== "number") {
           return res.status(400).json({
-            message: "Exam score must be a number",
+            message: "Exam score must be a number or null",
           });
         }
 
