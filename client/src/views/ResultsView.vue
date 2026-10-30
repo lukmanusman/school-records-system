@@ -186,10 +186,18 @@ const initializeGridScores = () => {
 
       const key = `${student.id}-${subjectId}`
 
+      const caValue = result?.caStatus === 'ABSENT' ? '-' : (result?.caScore ?? '')
+      const examValue = result?.examStatus === 'ABSENT' ? '-' : (result?.examScore ?? '')
+
       scores[key] = {
         resultId: result?.id ?? null,
-        caScore: result?.caStatus === 'ABSENT' ? '-' : (result?.caScore ?? ''),
-        examScore: result?.examStatus === 'ABSENT' ? '-' : (result?.examScore ?? ''),
+
+        caScore: caValue,
+        examScore: examValue,
+
+        savedCaScore: caValue,
+        savedExamScore: examValue,
+
         status: result?.status ?? 'DRAFT',
       }
     })
@@ -212,6 +220,8 @@ const updateGridScore = (studentId, subjectId, field, value) => {
 }
 
 const saveGridCell = async (student, classSubject, assessment) => {
+  gridSaveErrorMessage.value = ''
+
   const subjectId = classSubject.subjectId
   const key = `${student.id}-${subjectId}`
   const score = gridScores.value[key]
@@ -224,6 +234,8 @@ const saveGridCell = async (student, classSubject, assessment) => {
     gridSaveErrorMessage.value = 'Approved results cannot be edited.'
     return
   }
+
+  const previousValue = assessment === 'ca' ? score.caScore : score.examScore
 
   const inputValue = String(assessment === 'ca' ? score.caScore : score.examScore).trim()
 
@@ -245,6 +257,12 @@ const saveGridCell = async (student, classSubject, assessment) => {
     !isAbsent &&
     (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > maxScore)
   ) {
+    if (assessment === 'ca') {
+      score.caScore = score.savedCaScore
+    } else {
+      score.examScore = score.savedExamScore
+    }
+
     gridSaveErrorMessage.value = `${assessmentName} score must be between 0 and ${maxScore}.`
     return
   }
@@ -279,6 +297,12 @@ const saveGridCell = async (student, classSubject, assessment) => {
     }
 
     score.resultId = response.result?.id ?? score.resultId
+
+    if (assessment === 'ca') {
+      score.savedCaScore = score.caScore
+    } else {
+      score.savedExamScore = score.examScore
+    }
 
     gridSaveSuccessMessage.value = `${assessmentName} saved successfully.`
   } catch (error) {
@@ -680,6 +704,10 @@ onMounted(async () => {
 
       <p v-else-if="!isGridReady">Select all three filters to display the result-entry grid.</p>
 
+      <p v-if="gridSaveErrorMessage" class="grid-save-error">
+        {{ gridSaveErrorMessage }}
+      </p>
+
       <div v-if="isGridReady" class="result-grid-wrapper">
         <table class="result-grid">
           <thead>
@@ -953,5 +981,12 @@ input {
   width: 4.5rem;
   min-width: 0;
   padding: 0.4rem;
+}
+
+.grid-save-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin: 0 0 12px;
+  font-weight: 500;
 }
 </style>
