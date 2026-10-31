@@ -71,6 +71,14 @@ const isGridReady = computed(() => {
   return Boolean(filterSessionId.value && filterTermId.value && filterClassId.value)
 })
 
+const formatScore = (score) => {
+  if (score === '' || score === null || score === undefined || score === '-') {
+    return score
+  }
+
+  return String(score).padStart(2, '0')
+}
+
 const getResultForCell = (studentId, subjectId) => {
   const key = `${studentId}-${subjectId}`
   return resultLookup.value.get(key) || null
@@ -117,8 +125,8 @@ const initializeGridScores = () => {
 
       const key = `${student.id}-${subjectId}`
 
-      const caValue = result?.caStatus === 'ABSENT' ? '-' : (result?.caScore ?? '')
-      const examValue = result?.examStatus === 'ABSENT' ? '-' : (result?.examScore ?? '')
+      const caValue = result?.caStatus === 'ABSENT' ? '-' : formatScore(result?.caScore ?? '')
+      const examValue = result?.examStatus === 'ABSENT' ? '-' : formatScore(result?.examScore ?? '')
 
       scores[key] = {
         resultId: result?.id ?? null,
@@ -227,8 +235,10 @@ const saveGridCell = async (student, classSubject, assessment) => {
     score.resultId = response.result?.id ?? score.resultId
 
     if (assessment === 'ca') {
+      score.caScore = formatScore(score.caScore)
       score.savedCaScore = score.caScore
     } else {
+      score.examScore = formatScore(score.examScore)
       score.savedExamScore = score.examScore
     }
   } catch (error) {
@@ -464,11 +474,7 @@ onMounted(async () => {
                   </template>
 
                   <template v-else>
-                    {{
-                      gridScores[`${student.id}-${classSubject.subjectId}`].caScore === '-'
-                        ? '-'
-                        : gridScores[`${student.id}-${classSubject.subjectId}`].caScore
-                    }}
+                    {{ formatScore(gridScores[`${student.id}-${classSubject.subjectId}`].caScore) }}
                   </template>
                 </td>
 
@@ -493,9 +499,7 @@ onMounted(async () => {
 
                   <template v-else>
                     {{
-                      gridScores[`${student.id}-${classSubject.subjectId}`].examScore === '-'
-                        ? '-'
-                        : gridScores[`${student.id}-${classSubject.subjectId}`].examScore
+                      formatScore(gridScores[`${student.id}-${classSubject.subjectId}`].examScore)
                     }}
                   </template>
                 </td>
