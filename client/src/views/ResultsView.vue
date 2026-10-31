@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 
 import { getResults, createResult, updateResult } from '../services/results.js'
@@ -11,6 +12,7 @@ import { getTerms } from '../services/terms.js'
 import { getTeacherAssignments } from '../services/teacherAssignments.js'
 
 const { user } = useAuth()
+const router = useRouter()
 
 const isTeacher = computed(() => user.value?.role === 'TEACHER')
 
@@ -70,6 +72,21 @@ const resultLookup = computed(() => {
 const isGridReady = computed(() => {
   return Boolean(filterSessionId.value && filterTermId.value && filterClassId.value)
 })
+
+const openResultPreview = () => {
+  if (!isGridReady.value) {
+    return
+  }
+
+  router.push({
+    name: 'results-preview',
+    query: {
+      academicSessionId: filterSessionId.value,
+      termId: filterTermId.value,
+      classId: filterClassId.value,
+    },
+  })
+}
 
 const formatScore = (score) => {
   if (score === '' || score === null || score === undefined || score === '-') {
@@ -416,6 +433,10 @@ onMounted(async () => {
             </option>
           </select>
         </div>
+
+        <button type="button" :disabled="!isGridReady" @click="openResultPreview">
+          Preview Result
+        </button>
       </form>
 
       <p v-if="isLoadingReferences">Loading reference data...</p>
@@ -508,6 +529,9 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
+      <button type="button" :disabled="!isGridReady" @click="openResultPreview">
+        Preview Result
+      </button>
     </section>
   </main>
 </template>
