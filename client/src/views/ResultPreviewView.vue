@@ -288,6 +288,48 @@ onMounted(() => {
   text-align: left;
 }
 
+/* Sticky header rows */
+.result-table thead tr:first-child th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: #f3f4f6;
+}
+
+.result-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 42px;
+  z-index: 5;
+  background-color: #f3f4f6;
+}
+
+/* Sticky S/N column */
+.result-table th:first-child,
+.result-table td:first-child {
+  position: sticky;
+  left: 0;
+  min-width: 55px;
+  background-color: #fff;
+  z-index: 10;
+}
+
+/* Sticky Student Name column */
+.result-table th:nth-child(2),
+.result-table td:nth-child(2) {
+  position: sticky;
+  left: 55px;
+  min-width: 180px;
+  background-color: #fff;
+  z-index: 10;
+}
+
+/* Sticky header intersections */
+.result-table thead tr:first-child th:first-child,
+.result-table thead tr:first-child th:nth-child(2) {
+  z-index: 20;
+  background-color: #f3f4f6;
+}
+
 .error-message {
   color: #b91c1c;
 }
