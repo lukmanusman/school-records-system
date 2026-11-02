@@ -1,4 +1,7 @@
 <script setup>
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
@@ -121,6 +124,109 @@ const getDisplayGrade = (result) => {
   return getGrade(total)
 }
 
+const aggregateTotal = computed(() => {
+  if (subjectsForSelectedClass.value.length === 0) {
+    return '-'
+  }
+
+  let total = 0
+
+  for (const classSubject of subjectsForSelectedClass.value) {
+    const result = getResultForSubject(classSubject.subjectId)
+    const subjectTotal = getDisplayTotal(result)
+
+    if (subjectTotal === 'Pending') {
+      return 'Pending'
+    }
+
+    if (typeof subjectTotal === 'number') {
+      total += subjectTotal
+    }
+  }
+
+  return total
+})
+
+const downloadResultPDF = () => {
+  const doc = new jsPDF()
+
+  // School heading
+  doc.setFontSize(18)
+  doc.setFont('helvetica', 'bold')
+  doc.text('SCHOOL NAME', 105, 20, { align: 'center' })
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.text('School Address and Contact Details', 105, 27, {
+    align: 'center',
+  })
+
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('STUDENT ACADEMIC REPORT', 105, 40, {
+    align: 'center',
+  })
+
+  // Student information
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+
+  doc.text(`Student Name: ${getStudentName(selectedStudent.value)}`, 14, 55)
+  doc.text(`Admission Number: ${selectedStudent.value.admissionNumber}`, 14, 62)
+  doc.text(`Class: ${selectedClass.value?.name ?? '—'}`, 14, 69)
+  doc.text(`Academic Session: ${selectedSession.value?.name ?? '—'}`, 120, 55)
+  doc.text(`Term: ${selectedTerm.value?.name ?? '—'}`, 120, 62)
+
+  // Subject results
+  const tableRows = subjectsForSelectedClass.value.map((classSubject, index) => {
+    const result = getResultForSubject(classSubject.subjectId)
+
+    return [
+      index + 1,
+      classSubject.subject.name,
+      getDisplayScore(result, 'ca'),
+      getDisplayScore(result, 'exam'),
+      getDisplayTotal(result),
+      getDisplayGrade(result),
+    ]
+  })
+
+  autoTable(doc, {
+    startY: 80,
+    head: [['S/N', 'Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade']],
+    body: tableRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 9,
+      cellPadding: 3,
+    },
+    headStyles: {
+      fillColor: [37, 99, 235],
+      textColor: 255,
+    },
+  })
+
+  // Aggregate total
+  const finalY = doc.lastAutoTable.finalY + 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.text(`Aggregate Total: ${aggregateTotal.value}`, 196, finalY, { align: 'right' })
+
+  // Signature sections
+  doc.setFont('helvetica', 'normal')
+
+  doc.line(20, finalY + 35, 85, finalY + 35)
+  doc.text("Class Teacher's Signature", 20, finalY + 41)
+
+  doc.line(125, finalY + 35, 190, finalY + 35)
+  doc.text("Principal's Signature", 125, finalY + 41)
+
+  // Download PDF
+  const fileName = `${selectedStudent.value.admissionNumber}-result.pdf`
+
+  doc.save(fileName)
+}
+
 const goBackToClassPreview = () => {
   router.push({
     name: 'results-preview',
@@ -194,7 +300,18 @@ onMounted(loadResults)
     </p>
 
     <template v-else-if="isIndividualPreview">
-      <button type="button" @click="goBackToClassPreview">← Back to Class Result Preview</button>
+      <div class="preview-actions">
+        <button type="button" @click="goBackToClassPreview">← Back to Class Result Preview</button>
+
+        <button
+          type="button"
+          class="download-button"
+          @click="downloadResultPDF"
+          :disabled="!selectedStudent || subjectsForSelectedClass.length === 0"
+        >
+          Download PDF
+        </button>
+      </div>
 
       <h1>Student Result Preview</h1>
 
@@ -254,6 +371,18 @@ onMounted(loadResults)
                 <td colspan="6">No subjects found for this class.</td>
               </tr>
             </tbody>
+
+            <tfoot>
+              <tr>
+                <td colspan="4" class="aggregate-label">Aggregate Total</td>
+
+                <td class="aggregate-value">
+                  {{ aggregateTotal }}
+                </td>
+
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </template>
@@ -298,3 +427,107 @@ onMounted(loadResults)
     </template>
   </section>
 </template>
+
+<style scoped>
+.student-details {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background-color: #f9fafb;
+}
+
+.student-details h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.student-details p {
+  margin: 8px 0;
+  color: #374151;
+  font-size: 14px;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.download-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  background-color: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download-button:hover {
+  background-color: #1d4ed8;
+}
+
+.download-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 20px;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.result-table th,
+.result-table td {
+  border: 1px solid #d1d5db;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.result-table th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+  color: #111827;
+}
+
+.result-table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.result-table tbody td:nth-child(2) {
+  text-align: left;
+  min-width: 180px;
+}
+
+.result-table tbody tr:hover {
+  background-color: #f3f4f6;
+}
+
+.result-table tfoot td {
+  padding: 14px;
+  font-weight: 700;
+  background-color: #e5e7eb;
+  border: 1px solid #d1d5db;
+}
+
+.aggregate-label {
+  text-align: right;
+}
+
+.aggregate-value {
+  text-align: center;
+  font-size: 16px;
+}
+</style>
