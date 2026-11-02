@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-
+import { useRouter } from 'vue-router'
 import { getResults } from '../services/results.js'
 import { getStudents } from '../services/students.js'
 import { getClassSubjects } from '../services/classSubjects.js'
@@ -10,6 +10,19 @@ import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
 
 const route = useRoute()
+const router = useRouter()
+
+const openStudentPreview = (student) => {
+  router.push({
+    name: 'student-result-preview',
+    query: {
+      studentId: student.id,
+      academicSessionId,
+      termId,
+      classId,
+    },
+  })
+}
 
 const academicSessionId = route.query.academicSessionId
 const termId = route.query.termId
@@ -208,8 +221,15 @@ onMounted(() => {
           <tbody>
             <tr v-for="(student, index) in studentsForSelectedClass" :key="student.id">
               <td>{{ index + 1 }}</td>
-              <td>{{ getStudentName(student) }}</td>
-
+              <td>
+                <button
+                  type="button"
+                  class="student-name-link"
+                  @click="openStudentPreview(student)"
+                >
+                  {{ getStudentName(student) }}
+                </button>
+              </td>
               <template v-for="classSubject in subjectsForSelectedClass" :key="classSubject.id">
                 <td>
                   {{ getDisplayScore(getResultForCell(student.id, classSubject.subjectId), 'ca') }}
@@ -328,6 +348,20 @@ onMounted(() => {
 .result-table thead tr:first-child th:nth-child(2) {
   z-index: 20;
   background-color: #f3f4f6;
+}
+
+.student-name-link {
+  border: none;
+  padding: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.student-name-link:hover {
+  text-decoration: underline;
 }
 
 .error-message {
