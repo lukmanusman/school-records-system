@@ -4,6 +4,7 @@ import {
   submitClassResultSheet,
   returnClassResultSheet,
   approveClassResultSheet,
+  getClassResultSheet,
 } from "../controllers/classResultSheetController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -12,6 +13,7 @@ import { authorize } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 router.post("/submit", protect, authorize("TEACHER"), submitClassResultSheet);
+router.get("/", protect, authorize("ADMIN", "TEACHER"), getClassResultSheet);
 
 router.patch(
   "/:id/return",

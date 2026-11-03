@@ -500,3 +500,47 @@ export const approveClassResultSheet = async (req, res) => {
     });
   }
 };
+
+export const getClassResultSheet = async (req, res) => {
+  try {
+    const { classId, academicSessionId, termId } = req.query;
+
+    const ids = { classId, academicSessionId, termId };
+
+    for (const [field, value] of Object.entries(ids)) {
+      if (
+        value === undefined ||
+        !Number.isInteger(Number(value)) ||
+        Number(value) <= 0
+      ) {
+        return res.status(400).json({
+          message: `${field} must be a valid positive integer`,
+        });
+      }
+    }
+
+    const sheet = await prisma.classResultSheet.findUnique({
+      where: {
+        classId_academicSessionId_termId: {
+          classId: Number(classId),
+          academicSessionId: Number(academicSessionId),
+          termId: Number(termId),
+        },
+      },
+    });
+
+    if (!sheet) {
+      return res.status(404).json({
+        message: "Class result sheet not found",
+      });
+    }
+
+    return res.status(200).json(sheet);
+  } catch (error) {
+    console.error("Error fetching class result sheet:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch class result sheet",
+    });
+  }
+};

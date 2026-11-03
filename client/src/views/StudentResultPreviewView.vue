@@ -12,6 +12,7 @@ import { getClassSubjects } from '../services/classSubjects.js'
 import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
+import { getClassResultSheet } from '../services/classResultSheet.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +31,7 @@ const classId = route.query.classId
 const isIndividualPreview = computed(() => isStaff.value && !!studentId)
 
 const results = ref([])
+const classResultSheet = ref(null)
 const students = ref([])
 const classSubjects = ref([])
 const classes = ref([])
@@ -65,6 +67,8 @@ const resultsLookup = computed(() => {
 
   return lookup
 })
+
+const isResultApproved = computed(() => classResultSheet.value?.status === 'APPROVED')
 
 const getResultForSubject = (subjectId) => {
   return resultsLookup.value.get(Number(subjectId)) || null
@@ -260,6 +264,19 @@ const loadResults = async () => {
       await loadIndividualPreviewData()
 
       results.value = resultData
+      try {
+        classResultSheet.value = await getClassResultSheet({
+          classId,
+          academicSessionId,
+          termId,
+        })
+      } catch (error) {
+        if (error.message === 'Class result sheet not found') {
+          classResultSheet.value = null
+        } else {
+          throw error
+        }
+      }
     } else {
       // The backend identifies the logged-in student.
       results.value = await getResults()
@@ -304,6 +321,7 @@ onMounted(loadResults)
         <button type="button" @click="goBackToClassPreview">← Back to Class Result Preview</button>
 
         <button
+          v-if="isResultApproved"
           type="button"
           class="download-button"
           @click="downloadResultPDF"
@@ -311,6 +329,8 @@ onMounted(loadResults)
         >
           Download PDF
         </button>
+
+        <p v-else class="approval-message">PDF download will be available after Admin approval.</p>
       </div>
 
       <h1>Student Result Preview</h1>
@@ -529,5 +549,11 @@ onMounted(loadResults)
 .aggregate-value {
   text-align: center;
   font-size: 16px;
+}
+
+.approval-message {
+  color: #b45309;
+  font-size: 14px;
+  font-weight: 500;
 }
 </style>
