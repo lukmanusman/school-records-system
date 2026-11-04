@@ -17,16 +17,16 @@ const openStudentPreview = (student) => {
     name: 'student-result-preview',
     query: {
       studentId: student.id,
-      academicSessionId,
-      termId,
-      classId,
+      academicSessionId: academicSessionId.value,
+      termId: termId.value,
+      classId: classId.value,
     },
   })
 }
 
-const academicSessionId = route.query.academicSessionId
-const termId = route.query.termId
-const classId = route.query.classId
+const academicSessionId = ref(route.query.academicSessionId ?? '')
+const termId = ref(route.query.termId ?? '')
+const classId = ref(route.query.classId ?? '')
 
 const results = ref([])
 const students = ref([])
@@ -37,23 +37,28 @@ const terms = ref([])
 
 const isLoading = ref(false)
 const errorMessage = ref('')
+const hasLoadedPreview = ref(false)
 
 const selectedSession = computed(() =>
-  academicSessions.value.find((session) => Number(session.id) === Number(academicSessionId)),
+  academicSessions.value.find((session) => Number(session.id) === Number(academicSessionId.value)),
 )
 
-const selectedTerm = computed(() => terms.value.find((term) => Number(term.id) === Number(termId)))
+const selectedTerm = computed(() =>
+  terms.value.find((term) => Number(term.id) === Number(termId.value)),
+)
 
 const selectedClass = computed(() =>
-  classes.value.find((schoolClass) => Number(schoolClass.id) === Number(classId)),
+  classes.value.find((schoolClass) => Number(schoolClass.id) === Number(classId.value)),
 )
 
 const subjectsForSelectedClass = computed(() =>
-  classSubjects.value.filter((classSubject) => Number(classSubject.classId) === Number(classId)),
+  classSubjects.value.filter(
+    (classSubject) => Number(classSubject.classId) === Number(classId.value),
+  ),
 )
 
 const studentsForSelectedClass = computed(() =>
-  students.value.filter((student) => Number(student.classId) === Number(classId)),
+  students.value.filter((student) => Number(student.classId) === Number(classId.value)),
 )
 
 const resultsLookup = computed(() => {
@@ -129,37 +134,53 @@ const getStudentName = (student) => {
   return [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ')
 }
 
-const loadPreviewData = async () => {
+const loadFilterOptions = async () => {
   isLoading.value = true
   errorMessage.value = ''
 
   try {
-    const [resultData, studentData, classSubjectData, classData, sessionData, termData] =
-      await Promise.all([
-        getResults({
-          academicSessionId,
-          termId,
-          classId,
-        }),
-        getStudents(academicSessionId, termId),
-        getClassSubjects(),
-        getClasses(),
-        getAcademicSessions(),
-        getTerms(academicSessionId),
-      ])
+    const [sessionData, classData, classSubjectData] = await Promise.all([
+      getAcademicSessions(),
+      getClasses(),
+      getClassSubjects(),
+    ])
+
+    academicSessions.value = sessionData
+    classes.value = classData
+    classSubjects.value = classSubjectData
+
+    if (academicSessionId.value) {
+      terms.value = await getTerms(academicSessionId.value)
+    }
+  } catch (error) {
+    console.error('Error loading preview filters:', error)
+    errorMessage.value = error.message
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const loadPreviewData = async () => {
+  if (!academicSessionId.value || !termId.value || !classId.value) {
+    return
+  }
+
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    const [resultData, studentData] = await Promise.all([
+      getResults({
+        academicSessionId: academicSessionId.value,
+        termId: termId.value,
+        classId: classId.value,
+      }),
+      getStudents(academicSessionId.value, termId.value),
+    ])
 
     results.value = resultData
     students.value = studentData
-    classSubjects.value = classSubjectData
-    classes.value = classData
-    academicSessions.value = sessionData
-    terms.value = termData
-    console.log('Preview results:', results.value)
-    console.log('Preview students:', students.value)
-    console.log('Preview class subjects:', classSubjects.value)
-    console.log('Preview classes:', classes.value)
-    console.log('Preview sessions:', academicSessions.value)
-    console.log('Preview terms:', terms.value)
+    hasLoadedPreview.value = true
   } catch (error) {
     console.error('Error loading result preview:', error)
     errorMessage.value = error.message
@@ -168,8 +189,40 @@ const loadPreviewData = async () => {
   }
 }
 
-onMounted(() => {
-  loadPreviewData()
+const handleAcademicSessionChange = async () => {
+  termId.value = ''
+  terms.value = []
+  results.value = []
+  students.value = []
+  hasLoadedPreview.value = false
+
+  if (!academicSessionId.value) return
+
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    terms.value = await getTerms(academicSessionId.value)
+  } catch (error) {
+    console.error('Error loading terms:', error)
+    errorMessage.value = error.message
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const clearPreviewData = () => {
+  results.value = []
+  students.value = []
+  hasLoadedPreview.value = false
+}
+
+onMounted(async () => {
+  await loadFilterOptions()
+
+  if (academicSessionId.value && termId.value && classId.value) {
+    await loadPreviewData()
+  }
 })
 </script>
 
@@ -177,13 +230,67 @@ onMounted(() => {
   <main class="result-preview">
     <h1>Class Result Preview</h1>
 
+    <section class="preview-filters">
+      <div class="filter-group">
+        <label for="academic-session">Academic Session</label>
+        <select
+          id="academic-session"
+          v-model="academicSessionId"
+          @change="handleAcademicSessionChange"
+        >
+          <option value="">Select Academic Session</option>
+          <option v-for="session in academicSessions" :key="session.id" :value="String(session.id)">
+            {{ session.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="term">Term</label>
+        <select
+          id="term"
+          v-model="termId"
+          @change="clearPreviewData"
+          :disabled="!academicSessionId"
+        >
+          <option value="">Select Term</option>
+          <option v-for="term in terms" :key="term.id" :value="String(term.id)">
+            {{ term.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="school-class">Class</label>
+        <select id="school-class" v-model="classId" @change="clearPreviewData">
+          <option value="">Select Class</option>
+          <option
+            v-for="schoolClass in classes"
+            :key="schoolClass.id"
+            :value="String(schoolClass.id)"
+          >
+            {{ schoolClass.name }}
+          </option>
+        </select>
+      </div>
+
+      <button
+        type="button"
+        class="preview-button"
+        @click="loadPreviewData"
+        :disabled="!academicSessionId || !termId || !classId || isLoading"
+      >
+        Preview Results
+      </button>
+    </section>
+
     <p v-if="isLoading">Loading result preview...</p>
 
     <p v-else-if="errorMessage" class="error-message">
       {{ errorMessage }}
     </p>
 
-    <template v-else>
+    <template v-else-if="hasLoadedPreview">
       <section class="preview-header">
         <h2>{{ selectedClass?.name }}</h2>
 
@@ -278,6 +385,47 @@ onMounted(() => {
 
 .preview-header p {
   margin: 4px 0;
+}
+
+.preview-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.filter-group label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.filter-group select {
+  padding: 9px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background-color: #fff;
+}
+
+.preview-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 5px;
+  background-color: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.preview-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
 }
 
 .table-wrapper {
