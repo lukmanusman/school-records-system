@@ -105,3 +105,60 @@ export const createFormTeacherAssignment = async (req, res) => {
     });
   }
 };
+
+export const checkMyFormTeacherAssignment = async (req, res) => {
+  try {
+    const { classId, academicSessionId } = req.query;
+
+    // Validate required IDs.
+    if (
+      !Number.isInteger(Number(classId)) ||
+      Number(classId) <= 0 ||
+      !Number.isInteger(Number(academicSessionId)) ||
+      Number(academicSessionId) <= 0
+    ) {
+      return res.status(400).json({
+        message: "Valid classId and academicSessionId are required",
+      });
+    }
+
+    // Find the teacher profile linked to the logged-in user.
+    const teacher = await prisma.teacher.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!teacher) {
+      return res.json({
+        isFormTeacher: false,
+      });
+    }
+
+    // Check whether this teacher is assigned to the selected class.
+    const assignment = await prisma.formTeacherAssignment.findUnique({
+      where: {
+        classId_academicSessionId: {
+          classId: Number(classId),
+          academicSessionId: Number(academicSessionId),
+        },
+      },
+      select: {
+        teacherId: true,
+      },
+    });
+
+    return res.json({
+      isFormTeacher: assignment?.teacherId === teacher.id,
+    });
+  } catch (error) {
+    console.error("Error checking form teacher assignment:", error);
+
+    return res.status(500).json({
+      message: "Failed to check form teacher assignment",
+    });
+  }
+};
