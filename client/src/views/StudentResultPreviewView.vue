@@ -13,6 +13,7 @@ import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
 import { getClassResultSheet } from '../services/classResultSheet.js'
+import { checkMyFormTeacherAssignment } from '../services/formTeacherAssignment.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,8 +21,8 @@ const router = useRouter()
 const { user } = useAuth()
 
 const isStudent = computed(() => user.value?.role === 'STUDENT')
-
 const isStaff = computed(() => ['ADMIN', 'TEACHER'].includes(user.value?.role))
+const isAdmin = computed(() => user.value?.role === 'ADMIN')
 
 const studentId = route.query.studentId
 const academicSessionId = route.query.academicSessionId
@@ -69,6 +70,12 @@ const resultsLookup = computed(() => {
 })
 
 const isResultApproved = computed(() => classResultSheet.value?.status === 'APPROVED')
+
+const isFormTeacher = ref(false)
+
+const canDownloadPDF = computed(
+  () => isResultApproved.value && (isAdmin.value || isFormTeacher.value),
+)
 
 const getResultForSubject = (subjectId) => {
   return resultsLookup.value.get(Number(subjectId)) || null
@@ -251,6 +258,7 @@ const getStudentName = (student) => {
 const loadResults = async () => {
   isLoading.value = true
   errorMessage.value = ''
+  isFormTeacher.value = false
 
   try {
     if (isIndividualPreview.value) {
@@ -275,6 +283,19 @@ const loadResults = async () => {
           classResultSheet.value = null
         } else {
           throw error
+        }
+      }
+      if (user.value?.role === 'TEACHER' && classResultSheet.value?.status === 'APPROVED') {
+        try {
+          const assignment = await checkMyFormTeacherAssignment({
+            classId,
+            academicSessionId,
+          })
+
+          isFormTeacher.value = assignment.isFormTeacher
+        } catch (error) {
+          console.error('Error checking form teacher assignment:', error)
+          isFormTeacher.value = false
         }
       }
     } else {
@@ -321,7 +342,7 @@ onMounted(loadResults)
         <button type="button" @click="goBackToClassPreview">← Back to Class Result Preview</button>
 
         <button
-          v-if="isResultApproved"
+          v-if="canDownloadPDF"
           type="button"
           class="download-button"
           @click="downloadResultPDF"
