@@ -21,6 +21,10 @@ export const getClassResultSheet = async (filters = {}) => {
 
   const data = await response.json()
 
+  if (response.status === 404) {
+    return null
+  }
+
   if (!response.ok) {
     throw new Error(data.message || 'Failed to fetch class result sheet')
   }

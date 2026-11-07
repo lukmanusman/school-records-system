@@ -12,7 +12,7 @@ import { getClassSubjects } from '../services/classSubjects.js'
 import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
-import { getClassResultSheet } from '../services/classResultSheet.js'
+import { getClassResultSheet } from '../services/classResultSheets.js'
 import { checkMyFormTeacherAssignment } from '../services/formTeacherAssignment.js'
 
 const route = useRoute()

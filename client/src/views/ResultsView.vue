@@ -10,6 +10,7 @@ import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
 import { getTeacherAssignments } from '../services/teacherAssignments.js'
+import { getClassResultSheet } from '../services/classResultSheets.js'
 
 const { user } = useAuth()
 const router = useRouter()
@@ -25,6 +26,8 @@ const terms = ref([])
 const teacherAssignments = ref([])
 const classSubjects = ref([])
 const classes = ref([])
+const classResultSheet = ref(null)
+const isLoadingClassResultSheet = ref(false)
 
 const filterSessionId = ref('')
 const filterTermId = ref('')
@@ -71,6 +74,13 @@ const resultLookup = computed(() => {
 
 const isGridReady = computed(() => {
   return Boolean(filterSessionId.value && filterTermId.value && filterClassId.value)
+})
+
+const canEditResults = computed(() => {
+  return (
+    !isLoadingClassResultSheet.value &&
+    ['DRAFT', 'RETURNED'].includes(classResultSheet.value?.status)
+  )
 })
 
 const openResultPreview = () => {
@@ -267,7 +277,7 @@ const saveGridCell = async (student, classSubject, assessment) => {
 }
 
 const canEditSubject = (subjectId) => {
-  if (!isTeacher.value || !filterClassId.value || !user.value?.id) {
+  if (!isTeacher.value || !filterClassId.value || !user.value?.id || !canEditResults.value) {
     return false
   }
 
@@ -278,6 +288,31 @@ const canEditSubject = (subjectId) => {
       Number(assignment.subjectId) === Number(subjectId)
     )
   })
+}
+
+const loadClassResultSheet = async () => {
+  classResultSheet.value = null
+  isLoadingClassResultSheet.value = true
+
+  if (!isGridReady.value) {
+    isLoadingClassResultSheet.value = false
+    return
+  }
+
+  try {
+    const sheet = await getClassResultSheet({
+      classId: filterClassId.value,
+      academicSessionId: filterSessionId.value,
+      termId: filterTermId.value,
+    })
+
+    classResultSheet.value = sheet ?? { status: 'DRAFT' }
+  } catch (error) {
+    console.error('Error loading class result sheet:', error)
+    errorMessage.value = error.message
+  } finally {
+    isLoadingClassResultSheet.value = false
+  }
 }
 
 const loadResults = async () => {
@@ -349,6 +384,7 @@ watch(filterSessionId, async (sessionId) => {
 
 watch([filterSessionId, filterTermId, filterClassId], () => {
   loadResults()
+  loadClassResultSheet()
 })
 
 watch([filterSessionId, filterTermId], async ([sessionId, termId]) => {
@@ -440,6 +476,9 @@ onMounted(async () => {
       </form>
 
       <p v-if="isLoadingReferences">Loading reference data...</p>
+      <p v-if="classResultSheet">
+        Result Status: <strong>{{ classResultSheet.status }}</strong>
+      </p>
 
       <p v-else-if="!isGridReady">Select all three filters to display the result-entry grid.</p>
 
