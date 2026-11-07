@@ -8,6 +8,7 @@ import { getClassSubjects } from '../services/classSubjects.js'
 import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
+import { getClassResultSheet } from '../services/classResultSheets.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +31,7 @@ const classId = ref(route.query.classId ?? '')
 
 const results = ref([])
 const students = ref([])
+const classResultSheet = ref(null)
 const classSubjects = ref([])
 const classes = ref([])
 const academicSessions = ref([])
@@ -169,17 +171,23 @@ const loadPreviewData = async () => {
   errorMessage.value = ''
 
   try {
-    const [resultData, studentData] = await Promise.all([
+    const [resultData, studentData, sheetData] = await Promise.all([
       getResults({
         academicSessionId: academicSessionId.value,
         termId: termId.value,
         classId: classId.value,
       }),
       getStudents(academicSessionId.value, termId.value),
+      getClassResultSheet({
+        academicSessionId: academicSessionId.value,
+        termId: termId.value,
+        classId: classId.value,
+      }),
     ])
 
     results.value = resultData
     students.value = studentData
+    classResultSheet.value = sheetData ?? { status: 'DRAFT' }
     hasLoadedPreview.value = true
   } catch (error) {
     console.error('Error loading result preview:', error)
@@ -194,6 +202,7 @@ const handleAcademicSessionChange = async () => {
   terms.value = []
   results.value = []
   students.value = []
+  classResultSheet.value = null
   hasLoadedPreview.value = false
 
   if (!academicSessionId.value) return
@@ -215,6 +224,7 @@ const clearPreviewData = () => {
   results.value = []
   students.value = []
   hasLoadedPreview.value = false
+  classResultSheet.value = null
 }
 
 onMounted(async () => {
@@ -297,6 +307,9 @@ onMounted(async () => {
         <p>Academic Session: {{ selectedSession?.name }}</p>
 
         <p>Term: {{ selectedTerm?.name }}</p>
+        <p v-if="classResultSheet">
+          Result Status: <strong>{{ classResultSheet.status }}</strong>
+        </p>
       </section>
 
       <div class="table-wrapper">
