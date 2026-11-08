@@ -8,10 +8,19 @@ import { getClassSubjects } from '../services/classSubjects.js'
 import { getClasses } from '../services/classes.js'
 import { getAcademicSessions } from '../services/academicSessions.js'
 import { getTerms } from '../services/terms.js'
-import { getClassResultSheet } from '../services/classResultSheets.js'
+import {
+  getClassResultSheet,
+  submitClassResultSheet,
+  approveClassResultSheet,
+  returnClassResultSheet,
+} from '../services/classResultSheets.js'
+
+import { checkMyFormTeacherAssignment } from '../services/formTeacherAssignments.js'
+import { useAuth } from '../composables/useAuth.js'
 
 const route = useRoute()
 const router = useRouter()
+const { user } = useAuth()
 
 const openStudentPreview = (student) => {
   router.push({
@@ -32,6 +41,20 @@ const classId = ref(route.query.classId ?? '')
 const results = ref([])
 const students = ref([])
 const classResultSheet = ref(null)
+// Class result sheet workflow
+const isFormTeacher = ref(false)
+const isCheckingFormTeacherAssignment = ref(false)
+
+const isProcessingSheet = ref(false)
+const showReturnForm = ref(false)
+const returnReason = ref('')
+
+const workflowError = ref('')
+const workflowSuccess = ref('')
+
+// User permissions
+const isAdmin = computed(() => user.value?.role === 'ADMIN')
+const isTeacher = computed(() => user.value?.role === 'TEACHER')
 const classSubjects = ref([])
 const classes = ref([])
 const academicSessions = ref([])
@@ -40,6 +63,127 @@ const terms = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
 const hasLoadedPreview = ref(false)
+
+const checkFormTeacherPermission = async () => {
+  isFormTeacher.value = false
+
+  if (user.value?.role !== 'TEACHER' || !classId.value || !academicSessionId.value) {
+    return
+  }
+
+  isCheckingFormTeacherAssignment.value = true
+
+  try {
+    const data = await checkMyFormTeacherAssignment({
+      classId: classId.value,
+      academicSessionId: academicSessionId.value,
+    })
+
+    isFormTeacher.value = data.isFormTeacher === true
+  } catch (error) {
+    console.error('Failed to check form teacher assignment:', error)
+    isFormTeacher.value = false
+  } finally {
+    isCheckingFormTeacherAssignment.value = false
+  }
+}
+
+const handleSubmitClassResultSheet = async () => {
+  workflowError.value = ''
+  workflowSuccess.value = ''
+
+  if (!isFormTeacher.value) {
+    workflowError.value = 'Only the assigned Form Teacher can submit this class result sheet.'
+    return
+  }
+
+  if (!['DRAFT', 'RETURNED'].includes(classResultSheet.value?.status)) {
+    workflowError.value = 'This class result sheet cannot be submitted in its current status.'
+    return
+  }
+
+  isProcessingSheet.value = true
+
+  try {
+    await submitClassResultSheet({
+      classId: Number(classId.value),
+      academicSessionId: Number(academicSessionId.value),
+      termId: Number(termId.value),
+    })
+    await loadPreviewData()
+    workflowSuccess.value = 'Class result sheet submitted successfully.'
+  } catch (error) {
+    workflowError.value = error.message
+  } finally {
+    isProcessingSheet.value = false
+  }
+}
+
+const handleApproveClassResultSheet = async () => {
+  workflowError.value = ''
+  workflowSuccess.value = ''
+
+  if (!isAdmin.value) {
+    workflowError.value = 'Only an Admin can approve a class result sheet.'
+    return
+  }
+
+  if (classResultSheet.value?.status !== 'SUBMITTED') {
+    workflowError.value = 'Only submitted class result sheets can be approved.'
+    return
+  }
+
+  isProcessingSheet.value = true
+
+  try {
+    await approveClassResultSheet(classResultSheet.value.id)
+
+    await loadPreviewData()
+
+    workflowSuccess.value = 'Class result sheet approved successfully.'
+  } catch (error) {
+    workflowError.value = error.message
+  } finally {
+    isProcessingSheet.value = false
+  }
+}
+
+const handleReturnClassResultSheet = async () => {
+  workflowError.value = ''
+  workflowSuccess.value = ''
+
+  if (!isAdmin.value) {
+    workflowError.value = 'Only an Admin can return a class result sheet.'
+    return
+  }
+
+  if (classResultSheet.value?.status !== 'SUBMITTED') {
+    workflowError.value = 'Only submitted class result sheets can be returned.'
+    return
+  }
+
+  if (!returnReason.value.trim()) {
+    workflowError.value = 'Please provide a reason for returning this result sheet.'
+    return
+  }
+
+  isProcessingSheet.value = true
+
+  try {
+    await returnClassResultSheet(classResultSheet.value.id, returnReason.value.trim())
+
+    showReturnForm.value = false
+    returnReason.value = ''
+
+    await loadPreviewData()
+
+    workflowSuccess.value = 'Class result sheet returned successfully.'
+  } catch (error) {
+    workflowError.value = error.message
+  } finally {
+    isProcessingSheet.value = false
+  }
+}
 
 const selectedSession = computed(() =>
   academicSessions.value.find((session) => Number(session.id) === Number(academicSessionId.value)),
@@ -169,6 +313,10 @@ const loadPreviewData = async () => {
 
   isLoading.value = true
   errorMessage.value = ''
+  workflowError.value = ''
+  workflowSuccess.value = ''
+  showReturnForm.value = false
+  returnReason.value = ''
 
   try {
     const [resultData, studentData, sheetData] = await Promise.all([
@@ -189,6 +337,7 @@ const loadPreviewData = async () => {
     students.value = studentData
     classResultSheet.value = sheetData ?? { status: 'DRAFT' }
     hasLoadedPreview.value = true
+    await checkFormTeacherPermission()
   } catch (error) {
     console.error('Error loading result preview:', error)
     errorMessage.value = error.message
