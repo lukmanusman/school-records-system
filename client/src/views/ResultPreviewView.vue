@@ -15,7 +15,7 @@ import {
   returnClassResultSheet,
 } from '../services/classResultSheets.js'
 
-import { checkMyFormTeacherAssignment } from '../services/formTeacherAssignments.js'
+import { checkMyFormTeacherAssignment } from '../services/formTeacherAssignment.js'
 import { useAuth } from '../composables/useAuth.js'
 
 const route = useRoute()
@@ -461,6 +461,80 @@ onMounted(async () => {
         </p>
       </section>
 
+      <section class="sheet-workflow">
+        <p v-if="workflowError" class="error-message">
+          {{ workflowError }}
+        </p>
+
+        <p v-if="workflowSuccess" class="success-message">
+          {{ workflowSuccess }}
+        </p>
+
+        <!-- Form Teacher submission -->
+        <button
+          v-if="
+            isTeacher && isFormTeacher && ['DRAFT', 'RETURNED'].includes(classResultSheet?.status)
+          "
+          type="button"
+          class="workflow-button"
+          @click="handleSubmitClassResultSheet"
+          :disabled="isProcessingSheet || isCheckingFormTeacherAssignment"
+        >
+          {{ isProcessingSheet ? 'Submitting...' : 'Submit Result Sheet' }}
+        </button>
+
+        <!-- Admin approval and return -->
+        <template v-if="isAdmin && classResultSheet?.status === 'SUBMITTED'">
+          <button
+            type="button"
+            class="workflow-button"
+            @click="handleApproveClassResultSheet"
+            :disabled="isProcessingSheet"
+          >
+            {{ isProcessingSheet ? 'Processing...' : 'Approve Result Sheet' }}
+          </button>
+
+          <button
+            v-if="!showReturnForm"
+            type="button"
+            class="workflow-button return-button"
+            @click="showReturnForm = true"
+            :disabled="isProcessingSheet"
+          >
+            Return Result Sheet
+          </button>
+
+          <div v-if="showReturnForm" class="return-form">
+            <label for="return-reason">Reason for returning result sheet</label>
+
+            <textarea
+              id="return-reason"
+              v-model="returnReason"
+              rows="3"
+              placeholder="Enter the reason for returning this result sheet"
+            ></textarea>
+
+            <button
+              type="button"
+              class="workflow-button return-button"
+              @click="handleReturnClassResultSheet"
+              :disabled="isProcessingSheet || !returnReason.trim()"
+            >
+              {{ isProcessingSheet ? 'Returning...' : 'Confirm Return' }}
+            </button>
+
+            <button
+              type="button"
+              class="workflow-button cancel-button"
+              @click="showReturnForm = false"
+              :disabled="isProcessingSheet"
+            >
+              Cancel
+            </button>
+          </div>
+        </template>
+      </section>
+
       <div class="table-wrapper">
         <table class="result-table">
           <thead>
@@ -676,5 +750,66 @@ onMounted(async () => {
 
 .error-message {
   color: #b91c1c;
+}
+
+.sheet-workflow {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.workflow-button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 5px;
+  background-color: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.workflow-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.return-button {
+  background-color: #b45309;
+}
+
+.cancel-button {
+  background-color: #6b7280;
+}
+
+.success-message {
+  width: 100%;
+  color: #15803d;
+}
+
+.sheet-workflow .error-message {
+  width: 100%;
+}
+
+.return-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 450px;
+}
+
+.return-form label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.return-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font: inherit;
+  resize: vertical;
 }
 </style>
