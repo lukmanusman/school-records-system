@@ -100,6 +100,8 @@ export const enrollStudent = async (req, res) => {
         "JSS1 students must be enrolled as FRESHER",
         "Students entering above JSS1 must be enrolled as TRANSFER",
         "A user with this email already exists",
+        "The selected entry term has an unsupported name",
+        "No eligible term remains for this class in the selected academic session. Please select another academic session.",
       ].includes(error.message)
     ) {
       return res.status(400).json({

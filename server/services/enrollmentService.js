@@ -75,17 +75,56 @@ export const createEnrollment = async ({
       throw new Error("Entry term does not belong to the academic session");
     }
 
-    const isJSS1 = /^JSS1[A-Z]?$/.test(entryClass.name);
+    const termOrder = ["First Term", "Second Term", "Third Term"];
 
-    if (isJSS1 && enrollmentType !== "FRESHER") {
-      throw new Error("JSS1 students must be enrolled as FRESHER");
+    const entryTermIndex = termOrder.indexOf(entryTerm.name);
+
+    if (entryTermIndex === -1) {
+      throw new Error("The selected entry term has an unsupported name");
     }
 
-    if (!isJSS1 && enrollmentType !== "TRANSFER") {
+    // Get all terms in the selected academic session.
+    const sessionTerms = await tx.term.findMany({
+      where: {
+        academicSessionId,
+        name: {
+          in: termOrder,
+        },
+      },
+    });
+
+    // Sort by academic term order, not database ID.
+    sessionTerms.sort(
+      (a, b) => termOrder.indexOf(a.name) - termOrder.indexOf(b.name),
+    );
+
+    // Find existing result sheets for this class and session.
+    const existingResultSheets = await tx.classResultSheet.findMany({
+      where: {
+        classId: entryClassId,
+        academicSessionId,
+      },
+      select: {
+        termId: true,
+      },
+    });
+
+    const existingSheetTermIds = new Set(
+      existingResultSheets.map((sheet) => sheet.termId),
+    );
+
+    // Find the first eligible term from the selected entry term onward.
+    const effectivePlacementTerm = sessionTerms
+      .filter((term) => termOrder.indexOf(term.name) >= entryTermIndex)
+      .find((term) => !existingSheetTermIds.has(term.id));
+
+    if (!effectivePlacementTerm) {
       throw new Error(
-        "Students entering above JSS1 must be enrolled as TRANSFER",
+        "No eligible term remains for this class in the selected academic session. Please select another academic session.",
       );
     }
+
+    const effectiveStartingTermId = effectivePlacementTerm.id;
 
     const admissionNumber = await generateAdmissionNumber(tx, enrollmentType);
 
@@ -125,7 +164,7 @@ export const createEnrollment = async ({
         studentId: student.id,
         classId: entryClassId,
         academicSessionId,
-        startingTermId: entryTermId,
+        startingTermId: effectiveStartingTermId,
       },
     });
 
