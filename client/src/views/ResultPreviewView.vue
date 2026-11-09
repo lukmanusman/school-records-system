@@ -459,6 +459,13 @@ onMounted(async () => {
         <p v-if="classResultSheet">
           Result Status: <strong>{{ classResultSheet.status }}</strong>
         </p>
+        <div
+          v-if="classResultSheet?.status === 'RETURNED' && classResultSheet?.returnReason"
+          class="return-reason-message"
+        >
+          <strong>Admin's Return Message:</strong>
+          <p>{{ classResultSheet.returnReason }}</p>
+        </div>
       </section>
 
       <section class="sheet-workflow">
@@ -811,5 +818,17 @@ onMounted(async () => {
   border-radius: 5px;
   font: inherit;
   resize: vertical;
+}
+
+.return-reason-message {
+  margin-top: 12px;
+  padding: 12px;
+  border-left: 4px solid #b45309;
+  background-color: #fffbeb;
+  color: #92400e;
+}
+
+.return-reason-message p {
+  margin: 6px 0 0;
 }
 </style>
