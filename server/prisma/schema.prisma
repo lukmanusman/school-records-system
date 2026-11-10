@@ -18,14 +18,10 @@ enum UserRole {
   STUDENT
 }
 
-enum ResultStatus {
-  DRAFT
-  APPROVED
-}
-
 enum PromotionDecisionType {
   PROMOTE
   REPEAT
+  GRADUATE
 }
 
 enum AssessmentStatus {
@@ -69,11 +65,13 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  student          Student?
-  teacher          Teacher?
-  reviewedClassResultSheets ClassResultSheet[] @relation("ClassResultSheetReviewer")
-  approvedResults  Result[]            @relation("ResultApprover")
-  publishedResults ResultPublication[] @relation("ResultPublisher")
+  student                    Student?
+  teacher                    Teacher?
+  reviewedClassResultSheets  ClassResultSheet[]  @relation("ClassResultSheetReviewer")
+  publishedResults           ResultPublication[] @relation("ResultPublisher")
+  activatedResultEntryTerms  Term[]              @relation("TermResultEntryActivator")
+  finalizedPromotions        Promotion[]         @relation("PromotionFinalizer")
+  performedSessionMigrations SessionMigration[]  @relation("SessionMigrationPerformer")
 }
 
 model Student {
@@ -89,11 +87,12 @@ model Student {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  user       User?       @relation(fields: [userId], references: [id])
-  class      Class       @relation(fields: [classId], references: [id])
-  classPlacements StudentClassPlacement[]
-  results    Result[]
-  enrollment Enrollment?
+  user               User?                   @relation(fields: [userId], references: [id])
+  class              Class                   @relation(fields: [classId], references: [id])
+  classPlacements    StudentClassPlacement[]
+  results            Result[]
+  enrollment         Enrollment?
+  graduation         Graduation?
   promotionDecisions PromotionDecision[]
 }
 
@@ -141,11 +140,11 @@ model Teacher {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user        User?               @relation(fields: [userId], references: [id])
-  assignments TeacherAssignment[]
-  formTeacherAssignments    FormTeacherAssignment[]
-  submittedClassResultSheets ClassResultSheet[] @relation("ClassResultSheetSubmitter")
-  results     Result[]
+  user                       User?                   @relation(fields: [userId], references: [id])
+  assignments                TeacherAssignment[]
+  formTeacherAssignments     FormTeacherAssignment[]
+  submittedClassResultSheets ClassResultSheet[]      @relation("ClassResultSheetSubmitter")
+  results                    Result[]
 }
 
 model Class {
@@ -154,17 +153,18 @@ model Class {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  students           Student[]
-  classSubjects      ClassSubject[]
-  assignments        TeacherAssignment[]
-  enrollments        Enrollment[]
-  studentPlacements StudentClassPlacement[]
+  students               Student[]
+  classSubjects          ClassSubject[]
+  assignments            TeacherAssignment[]
+  enrollments            Enrollment[]
+  studentPlacements      StudentClassPlacement[]
   formTeacherAssignments FormTeacherAssignment[]
   classResultSheets      ClassResultSheet[]
-  resultPublications ResultPublication[]
-  results            Result[]
-  promotionsFrom Promotion[] @relation("PromotionFromClass")
-  promotionsTo   Promotion[] @relation("PromotionToClass")
+  resultPublications     ResultPublication[]
+  results                Result[]
+  promotionsFrom         Promotion[]             @relation("PromotionFromClass")
+  promotionsTo           Promotion[]             @relation("PromotionToClass")
+  graduations            Graduation[]            @relation("GraduationFromClass")
 }
 
 model Subject {
@@ -191,17 +191,19 @@ model ClassSubject {
 }
 
 model TeacherAssignment {
-  id        Int      @id @default(autoincrement())
-  teacherId Int
-  subjectId Int
-  classId   Int
-  createdAt DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  teacherId         Int
+  subjectId         Int
+  classId           Int
+  academicSessionId Int
+  createdAt         DateTime @default(now())
 
-  teacher Teacher @relation(fields: [teacherId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
-  class   Class   @relation(fields: [classId], references: [id])
+  teacher         Teacher         @relation(fields: [teacherId], references: [id])
+  subject         Subject         @relation(fields: [subjectId], references: [id])
+  class           Class           @relation(fields: [classId], references: [id])
+  academicSession AcademicSession @relation(fields: [academicSessionId], references: [id], onDelete: Restrict)
 
-  @@unique([teacherId, subjectId, classId])
+  @@unique([academicSessionId, classId, subjectId])
 }
 
 model FormTeacherAssignment {
@@ -212,45 +214,52 @@ model FormTeacherAssignment {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  teacher         Teacher        @relation(fields: [teacherId], references: [id])
-  class           Class          @relation(fields: [classId], references: [id])
+  teacher         Teacher         @relation(fields: [teacherId], references: [id])
+  class           Class           @relation(fields: [classId], references: [id])
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
 
   @@unique([classId, academicSessionId])
 }
 
 model AcademicSession {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  sequence  Int      @unique
+  id        Int                   @id @default(autoincrement())
+  name      String                @unique
+  sequence  Int                   @unique
   status    AcademicSessionStatus @default(PLANNED)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
 
-  terms              Term[]
+  terms                  Term[]
+  teacherAssignments     TeacherAssignment[]
   formTeacherAssignments FormTeacherAssignment[]
   classResultSheets      ClassResultSheet[]
-  results            Result[]
-  enrollments        Enrollment[]
-  studentPlacements StudentClassPlacement[]
-  resultPublications ResultPublication[]
-  promotionsFrom Promotion[] @relation("PromotionFromSession")
+  results                Result[]
+  enrollments            Enrollment[]
+  studentPlacements      StudentClassPlacement[]
+  resultPublications     ResultPublication[]
+  promotionsFrom         Promotion[]             @relation("PromotionFromSession")
+  migrationAsSource      SessionMigration?       @relation("MigrationSource")
+  migrationAsDestination SessionMigration?       @relation("MigrationDestination")
+  graduateClass          GraduateClass?          @relation("GraduateClassSession")
 }
 
 model Term {
-  id                Int      @id @default(autoincrement())
-  name              String
-  academicSessionId Int
-  status TermStatus @default(UPCOMING)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                       Int        @id @default(autoincrement())
+  name                     String
+  academicSessionId        Int
+  status                   TermStatus @default(UPCOMING)
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  resultEntryActivatedAt   DateTime?
+  resultEntryActivatedById Int?
 
-  academicSession    AcademicSession     @relation(fields: [academicSessionId], references: [id])
-  results            Result[]
-  enrollments        Enrollment[]
-  startingPlacements StudentClassPlacement[]
-  classResultSheets ClassResultSheet[]
-  resultPublications ResultPublication[]
+  academicSession        AcademicSession         @relation(fields: [academicSessionId], references: [id])
+  results                Result[]
+  enrollments            Enrollment[]
+  startingPlacements     StudentClassPlacement[]
+  classResultSheets      ClassResultSheet[]
+  resultPublications     ResultPublication[]
+  resultEntryActivatedBy User?                   @relation("TermResultEntryActivator", fields: [resultEntryActivatedById], references: [id], onDelete: Restrict)
 
   @@unique([academicSessionId, name])
 }
@@ -267,9 +276,6 @@ model Result {
   caStatus          AssessmentStatus @default(PRESENT)
   examScore         Float?
   examStatus        AssessmentStatus @default(PRESENT)
-  status            ResultStatus     @default(DRAFT)
-  approvedAt        DateTime?
-  approvedById      Int?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -279,7 +285,6 @@ model Result {
   class           Class?          @relation(fields: [classId], references: [id])
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
   term            Term            @relation(fields: [termId], references: [id])
-  approvedBy      User?           @relation("ResultApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, subjectId, academicSessionId, termId])
 }
@@ -296,25 +301,25 @@ model AdmissionNumberCounter {
 }
 
 model ClassResultSheet {
-  id                    Int                  @id @default(autoincrement())
-  classId               Int
-  academicSessionId     Int
-  termId                Int
-  status                ClassResultSheetStatus @default(DRAFT)
-  submittedAt           DateTime?
-  submittedByTeacherId  Int?
-  reviewedAt            DateTime?
-  reviewedById          Int?
-  approvedAt            DateTime?
-  returnReason          String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                   Int                    @id @default(autoincrement())
+  classId              Int
+  academicSessionId    Int
+  termId               Int
+  status               ClassResultSheetStatus @default(DRAFT)
+  submittedAt          DateTime?
+  submittedByTeacherId Int?
+  reviewedAt           DateTime?
+  reviewedById         Int?
+  approvedAt           DateTime?
+  returnReason         String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
-  class           Class          @relation(fields: [classId], references: [id])
+  class           Class           @relation(fields: [classId], references: [id])
   academicSession AcademicSession @relation(fields: [academicSessionId], references: [id])
-  term            Term           @relation(fields: [termId], references: [id])
+  term            Term            @relation(fields: [termId], references: [id])
 
-    submittedByTeacher Teacher? @relation("ClassResultSheetSubmitter", fields: [submittedByTeacherId], references: [id], onDelete: SetNull)
+  submittedByTeacher Teacher? @relation("ClassResultSheetSubmitter", fields: [submittedByTeacherId], references: [id], onDelete: SetNull)
 
   reviewedBy User? @relation("ClassResultSheetReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
@@ -340,33 +345,73 @@ model ResultPublication {
 }
 
 model Promotion {
-  id                Int      @id @default(autoincrement())
-  fromClassId       Int
-  fromSessionId     Int
-  toClassId         Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  appliedAt         DateTime?
+  id            Int       @id @default(autoincrement())
+  fromClassId   Int
+  fromSessionId Int
+  toClassId     Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  appliedAt     DateTime?
+  finalizedAt   DateTime?
+  finalizedById Int?
 
   fromClass   Class           @relation("PromotionFromClass", fields: [fromClassId], references: [id])
   toClass     Class?          @relation("PromotionToClass", fields: [toClassId], references: [id])
   fromSession AcademicSession @relation("PromotionFromSession", fields: [fromSessionId], references: [id])
 
-  decisions PromotionDecision[]
+  decisions   PromotionDecision[]
+  finalizedBy User?               @relation("PromotionFinalizer", fields: [finalizedById], references: [id], onDelete: Restrict)
 
   @@unique([fromClassId, fromSessionId])
 }
 
 model PromotionDecision {
-  id           Int                   @id @default(autoincrement())
-  promotionId  Int
-  studentId    Int
-  decision     PromotionDecisionType
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id          Int                   @id @default(autoincrement())
+  promotionId Int
+  studentId   Int
+  decision    PromotionDecisionType
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  graduation  Graduation?
 
   promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   student   Student   @relation(fields: [studentId], references: [id])
 
   @@unique([promotionId, studentId])
+}
+
+model SessionMigration {
+  id            Int      @id @default(autoincrement())
+  fromSessionId Int      @unique
+  toSessionId   Int      @unique
+  performedById Int
+  migratedAt    DateTime @default(now())
+
+  fromSession AcademicSession @relation("MigrationSource", fields: [fromSessionId], references: [id], onDelete: Restrict)
+  toSession   AcademicSession @relation("MigrationDestination", fields: [toSessionId], references: [id], onDelete: Restrict)
+  performedBy User            @relation("SessionMigrationPerformer", fields: [performedById], references: [id], onDelete: Restrict)
+}
+
+model GraduateClass {
+  id                  Int      @id @default(autoincrement())
+  name                String   @unique
+  graduationSessionId Int      @unique
+  createdAt           DateTime @default(now())
+
+  graduationSession AcademicSession @relation("GraduateClassSession", fields: [graduationSessionId], references: [id], onDelete: Restrict)
+  graduations       Graduation[]
+}
+
+model Graduation {
+  id                  Int      @id @default(autoincrement())
+  studentId           Int      @unique
+  graduateClassId     Int
+  fromClassId         Int
+  promotionDecisionId Int      @unique
+  graduatedAt         DateTime @default(now())
+
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  graduateClass     GraduateClass     @relation(fields: [graduateClassId], references: [id], onDelete: Restrict)
+  fromClass         Class             @relation("GraduationFromClass", fields: [fromClassId], references: [id], onDelete: Restrict)
+  promotionDecision PromotionDecision @relation(fields: [promotionDecisionId], references: [id], onDelete: Restrict)
 }
