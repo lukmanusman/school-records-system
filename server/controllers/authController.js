@@ -18,6 +18,13 @@ export const login = async (req, res) => {
       where: {
         email: normalizedEmail,
       },
+      include: {
+        student: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -32,6 +39,23 @@ export const login = async (req, res) => {
       return res.status(401).json({
         message: "Invalid email or password",
       });
+    }
+
+    if (user.role === "STUDENT" && user.student) {
+      const graduation = await prisma.graduation.findUnique({
+        where: {
+          studentId: user.student.id,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (graduation) {
+        return res.status(403).json({
+          message: "Graduated students cannot log in",
+        });
+      }
     }
 
     const token = generateToken(user);
