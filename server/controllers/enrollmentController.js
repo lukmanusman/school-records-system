@@ -41,8 +41,11 @@ export const enrollStudent = async (req, res) => {
 
     if (
       !Number.isInteger(sessionId) ||
+      sessionId < 1 ||
       !Number.isInteger(termId) ||
-      !Number.isInteger(classId)
+      termId < 1 ||
+      !Number.isInteger(classId) ||
+      classId < 1
     ) {
       return res.status(400).json({
         message:
@@ -89,6 +92,12 @@ export const enrollStudent = async (req, res) => {
     });
   } catch (error) {
     console.error("Error enrolling student:", error);
+
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        message: "A record with the supplied unique value already exists",
+      });
+    }
 
     if (
       [

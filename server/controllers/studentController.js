@@ -106,7 +106,22 @@ export const getStudents = async (req, res) => {
         class: placement.class,
       }));
     } else {
+      const graduations = await prisma.graduation.findMany({
+        select: {
+          studentId: true,
+        },
+      });
+
+      const graduatedStudentIds = graduations.map(
+        (graduation) => graduation.studentId,
+      );
+
       students = await prisma.student.findMany({
+        where: {
+          id: {
+            notIn: graduatedStudentIds,
+          },
+        },
         include: {
           class: true,
           user: {
@@ -190,7 +205,7 @@ export const updateStudent = async (req, res) => {
   try {
     const studentId = Number(req.params.id);
 
-    if (!Number.isInteger(studentId)) {
+    if (!Number.isInteger(studentId) || studentId < 1) {
       return res.status(400).json({
         message: "Invalid student ID",
       });
