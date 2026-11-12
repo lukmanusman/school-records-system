@@ -2,11 +2,26 @@ import prisma from "../lib/prisma.js";
 
 export const getTeacherAssignments = async (req, res) => {
   try {
+    const academicSessionId = req.query.academicSessionId
+      ? Number(req.query.academicSessionId)
+      : undefined;
+
+    if (
+      academicSessionId !== undefined &&
+      (!Number.isInteger(academicSessionId) || academicSessionId < 1)
+    ) {
+      return res.status(400).json({
+        message: "Invalid academic session ID",
+      });
+    }
+
     const assignments = await prisma.teacherAssignment.findMany({
+      where: academicSessionId ? { academicSessionId } : undefined,
       include: {
         teacher: true,
         subject: true,
         class: true,
+        academicSession: true,
       },
       orderBy: {
         id: "asc",
@@ -25,55 +40,60 @@ export const getTeacherAssignments = async (req, res) => {
 
 export const createTeacherAssignment = async (req, res) => {
   try {
-    const { teacherId, subjectId, classId } = req.body;
+    const { teacherId, subjectId, classId, academicSessionId } = req.body;
 
     const parsedTeacherId = Number(teacherId);
     const parsedSubjectId = Number(subjectId);
     const parsedClassId = Number(classId);
+    const parsedSessionId = Number(academicSessionId);
 
     if (
       !Number.isInteger(parsedTeacherId) ||
       !Number.isInteger(parsedSubjectId) ||
-      !Number.isInteger(parsedClassId)
+      !Number.isInteger(parsedClassId) ||
+      !Number.isInteger(parsedSessionId)
     ) {
       return res.status(400).json({
-        message: "Valid teacher ID, subject ID, and class ID are required",
+        message:
+          "Valid teacher, subject, class, and academic session IDs are required",
       });
     }
 
-    const [teacher, subject, classRecord] = await Promise.all([
+    const [teacher, subject, classRecord, academicSession] = await Promise.all([
       prisma.teacher.findUnique({
-        where: {
-          id: parsedTeacherId,
-        },
+        where: { id: parsedTeacherId },
       }),
       prisma.subject.findUnique({
-        where: {
-          id: parsedSubjectId,
-        },
+        where: { id: parsedSubjectId },
       }),
       prisma.class.findUnique({
-        where: {
-          id: parsedClassId,
-        },
+        where: { id: parsedClassId },
+      }),
+      prisma.academicSession.findUnique({
+        where: { id: parsedSessionId },
       }),
     ]);
 
     if (!teacher) {
-      return res.status(404).json({
-        message: "Teacher not found",
-      });
+      return res.status(404).json({ message: "Teacher not found" });
     }
 
     if (!subject) {
-      return res.status(404).json({
-        message: "Subject not found",
-      });
+      return res.status(404).json({ message: "Subject not found" });
     }
 
     if (!classRecord) {
-      return res.status(404).json({
-        message: "Class not found",
+      return res.status(404).json({ message: "Class not found" });
+    }
+
+    if (!academicSession) {
+      return res.status(404).json({ message: "Academic session not found" });
+    }
+
+    if (academicSession.status !== "ACTIVE") {
+      return res.status(400).json({
+        message:
+          "Teacher assignments can only be created for the active academic session",
       });
     }
 
@@ -94,17 +114,18 @@ export const createTeacherAssignment = async (req, res) => {
 
     const existingAssignment = await prisma.teacherAssignment.findUnique({
       where: {
-        teacherId_subjectId_classId: {
-          teacherId: parsedTeacherId,
-          subjectId: parsedSubjectId,
+        academicSessionId_classId_subjectId: {
+          academicSessionId: parsedSessionId,
           classId: parsedClassId,
+          subjectId: parsedSubjectId,
         },
       },
     });
 
     if (existingAssignment) {
       return res.status(409).json({
-        message: "This teacher is already assigned to this subject and class",
+        message:
+          "A teacher is already assigned to this subject and class for this academic session",
       });
     }
 
@@ -113,6 +134,7 @@ export const createTeacherAssignment = async (req, res) => {
         teacherId: parsedTeacherId,
         subjectId: parsedSubjectId,
         classId: parsedClassId,
+        academicSessionId: parsedSessionId,
       },
       include: {
         teacher: true,
@@ -128,6 +150,13 @@ export const createTeacherAssignment = async (req, res) => {
   } catch (error) {
     console.error("Error creating teacher assignment:", error);
 
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        message:
+          "A teacher is already assigned to this subject and class for this academic session",
+      });
+    }
+
     return res.status(500).json({
       message: "Failed to create teacher assignment",
     });
@@ -138,7 +167,7 @@ export const deleteTeacherAssignment = async (req, res) => {
   try {
     const assignmentId = Number(req.params.id);
 
-    if (!Number.isInteger(assignmentId)) {
+    if (!Number.isInteger(assignmentId) || assignmentId < 1) {
       return res.status(400).json({
         message: "Invalid teacher assignment ID",
       });
@@ -148,11 +177,52 @@ export const deleteTeacherAssignment = async (req, res) => {
       where: {
         id: assignmentId,
       },
+      include: {
+        academicSession: true,
+      },
     });
 
     if (!assignment) {
       return res.status(404).json({
         message: "Teacher assignment not found",
+      });
+    }
+
+    if (assignment.academicSession.status !== "ACTIVE") {
+      return res.status(400).json({
+        message:
+          "Assignments from inactive academic sessions cannot be deleted",
+      });
+    }
+
+    const [resultSheet, existingResult] = await Promise.all([
+      prisma.classResultSheet.findFirst({
+        where: {
+          classId: assignment.classId,
+          academicSessionId: assignment.academicSessionId,
+        },
+        select: {
+          id: true,
+        },
+      }),
+
+      prisma.result.findFirst({
+        where: {
+          teacherId: assignment.teacherId,
+          subjectId: assignment.subjectId,
+          classId: assignment.classId,
+          academicSessionId: assignment.academicSessionId,
+        },
+        select: {
+          id: true,
+        },
+      }),
+    ]);
+
+    if (resultSheet || existingResult) {
+      return res.status(409).json({
+        message:
+          "This assignment cannot be deleted because result records already exist for this class and academic session",
       });
     }
 
