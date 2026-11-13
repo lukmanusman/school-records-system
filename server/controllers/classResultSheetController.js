@@ -113,6 +113,15 @@ export const submitClassResultSheet = async (req, res) => {
         };
       }
 
+      if (!term.resultEntryActivatedAt) {
+        return {
+          status: 409,
+          body: {
+            message: "Result entry has not been activated for this term",
+          },
+        };
+      }
+
       const termOrder = TERM_ORDER[term.name];
 
       if (!termOrder) {
@@ -264,10 +273,14 @@ export const submitClassResultSheet = async (req, res) => {
           const item = resultLookup.get(`${placement.studentId}:${subjectId}`);
 
           const caComplete =
-            item && (item.caStatus === "ABSENT" || item.caScore !== null);
+            item &&
+            ((item.caStatus === "ABSENT" && item.caScore === null) ||
+              (item.caStatus === "PRESENT" && item.caScore !== null));
 
           const examComplete =
-            item && (item.examStatus === "ABSENT" || item.examScore !== null);
+            item &&
+            ((item.examStatus === "ABSENT" && item.examScore === null) ||
+              (item.examStatus === "PRESENT" && item.examScore !== null));
 
           if (!caComplete || !examComplete) {
             incomplete.push({

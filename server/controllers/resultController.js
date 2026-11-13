@@ -2,7 +2,7 @@ import prisma from "../lib/prisma.js";
 
 const calculateTotalScore = (caScore, caStatus, examScore, examStatus) => {
   if (caStatus === "ABSENT" && examStatus === "ABSENT") {
-    return "ABS";
+    return "-";
   }
 
   const caTotal = caStatus === "ABSENT" ? 0 : caScore;
@@ -147,12 +147,24 @@ export const createResult = async (req, res) => {
       });
     }
 
-    // A result requires a current class
-    if (!student.classId) {
+    // Resolve the student's class for the selected academic session.
+    const studentPlacement = await prisma.studentClassPlacement.findUnique({
+      where: {
+        studentId_academicSessionId: {
+          studentId: studentIdNumber,
+          academicSessionId: academicSessionIdNumber,
+        },
+      },
+    });
+
+    if (!studentPlacement) {
       return res.status(400).json({
-        message: "Student is not assigned to a class",
+        message:
+          "Student has no class placement in the selected academic session",
       });
     }
+
+    const studentClassId = studentPlacement.classId;
 
     // Check subject
     const subject = await prisma.subject.findUnique({
@@ -204,6 +216,35 @@ export const createResult = async (req, res) => {
       });
     }
 
+    // Check that the student's placement had started by the selected term.
+    const startingTerm = await prisma.term.findUnique({
+      where: {
+        id: studentPlacement.startingTermId,
+      },
+    });
+
+    if (!startingTerm) {
+      return res.status(400).json({
+        message: "Student's starting term could not be found",
+      });
+    }
+
+    const termOrder = ["First Term", "Second Term", "Third Term"];
+
+    const selectedTermIndex = termOrder.indexOf(term.name);
+    const startingTermIndex = termOrder.indexOf(startingTerm.name);
+
+    if (
+      startingTerm.academicSessionId !== academicSessionIdNumber ||
+      selectedTermIndex === -1 ||
+      startingTermIndex === -1 ||
+      selectedTermIndex < startingTermIndex
+    ) {
+      return res.status(400).json({
+        message: "The student is not eligible to receive results for this term",
+      });
+    }
+
     // Only the active academic session accepts new results.
     if (academicSession.status !== "ACTIVE") {
       return res.status(409).json({
@@ -218,11 +259,17 @@ export const createResult = async (req, res) => {
       });
     }
 
+    if (!term.resultEntryActivatedAt) {
+      return res.status(409).json({
+        message: "Result entry has not been activated for this term",
+      });
+    }
+
     // Prevent new results from being created after the report is published
     const publication = await prisma.resultPublication.findUnique({
       where: {
         classId_academicSessionId_termId: {
-          classId: student.classId,
+          classId: studentClassId,
           academicSessionId: academicSessionIdNumber,
           termId: termIdNumber,
         },
@@ -240,7 +287,7 @@ export const createResult = async (req, res) => {
     const classSubject = await prisma.classSubject.findUnique({
       where: {
         classId_subjectId: {
-          classId: student.classId,
+          classId: studentClassId,
           subjectId: subjectIdNumber,
         },
       },
@@ -254,13 +301,12 @@ export const createResult = async (req, res) => {
 
     // Check that the teacher teaches this subject in the student's class
     if (req.user.role === "TEACHER") {
-      const teacherAssignment = await prisma.teacherAssignment.findUnique({
+      const teacherAssignment = await prisma.teacherAssignment.findFirst({
         where: {
-          teacherId_subjectId_classId: {
-            teacherId: teacherIdNumber,
-            subjectId: subjectIdNumber,
-            classId: student.classId,
-          },
+          teacherId: teacherIdNumber,
+          subjectId: subjectIdNumber,
+          classId: studentClassId,
+          academicSessionId: academicSessionIdNumber,
         },
       });
 
@@ -296,14 +342,14 @@ export const createResult = async (req, res) => {
       const classResultSheet = await tx.classResultSheet.upsert({
         where: {
           classId_academicSessionId_termId: {
-            classId: student.classId,
+            classId: studentClassId,
             academicSessionId: academicSessionIdNumber,
             termId: termIdNumber,
           },
         },
         update: {},
         create: {
-          classId: student.classId,
+          classId: studentClassId,
           academicSessionId: academicSessionIdNumber,
           termId: termIdNumber,
         },
@@ -320,7 +366,7 @@ export const createResult = async (req, res) => {
           studentId: studentIdNumber,
           subjectId: subjectIdNumber,
           teacherId: teacherIdNumber,
-          classId: student.classId,
+          classId: studentClassId,
           academicSessionId: academicSessionIdNumber,
           termId: termIdNumber,
           ...(caStatus !== undefined && {
@@ -381,6 +427,27 @@ export const getResults = async (req, res) => {
       classId,
     } = req.query;
 
+    // Validate supplied query parameters.
+    const filters = {
+      studentId,
+      subjectId,
+      teacherId,
+      academicSessionId,
+      termId,
+      classId,
+    };
+
+    for (const [field, value] of Object.entries(filters)) {
+      if (
+        value !== undefined &&
+        (!Number.isInteger(Number(value)) || Number(value) <= 0)
+      ) {
+        return res.status(400).json({
+          message: `${field} must be a valid positive integer`,
+        });
+      }
+    }
+
     const where = {};
 
     // Students can only view their own published results
@@ -397,14 +464,20 @@ export const getResults = async (req, res) => {
         });
       }
 
-      if (!student.classId) {
-        return res.status(400).json({
-          message: "Student is not assigned to a class",
-        });
-      }
-
       // Ignore any studentId supplied by the student.
       where.studentId = student.id;
+
+      // Get the student's historical class placements.
+      const studentPlacements = await prisma.studentClassPlacement.findMany({
+        where: {
+          studentId: student.id,
+        },
+        select: {
+          classId: true,
+          academicSessionId: true,
+          startingTermId: true,
+        },
+      });
 
       // Find published reports that this student's results may belong to.
       const publishedReports = await prisma.resultPublication.findMany({
@@ -426,15 +499,117 @@ export const getResults = async (req, res) => {
         },
       });
 
-      // Only return results whose historical class/session/term
-      // combination corresponds to a published report.
-      where.OR = publishedReports.map((publication) => ({
-        classId: publication.classId,
-        academicSessionId: publication.academicSessionId,
-        termId: publication.termId,
+      // Retrieve the terms needed to verify placement eligibility.
+      const relevantTermIds = [
+        ...new Set([
+          ...studentPlacements.map((placement) => placement.startingTermId),
+          ...publishedReports.map((publication) => publication.termId),
+        ]),
+      ];
+
+      const relevantTerms = await prisma.term.findMany({
+        where: {
+          id: {
+            in: relevantTermIds,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          academicSessionId: true,
+        },
+      });
+
+      const termsById = new Map(relevantTerms.map((term) => [term.id, term]));
+
+      const termOrder = ["First Term", "Second Term", "Third Term"];
+
+      // Only return published results from terms on or after
+      // the student's placement starting term.
+      where.OR = publishedReports
+        .filter((publication) => {
+          const placement = studentPlacements.find(
+            (item) =>
+              item.classId === publication.classId &&
+              item.academicSessionId === publication.academicSessionId,
+          );
+
+          if (!placement) {
+            return false;
+          }
+
+          const startingTerm = termsById.get(placement.startingTermId);
+          const publishedTerm = termsById.get(publication.termId);
+
+          if (
+            !startingTerm ||
+            !publishedTerm ||
+            startingTerm.academicSessionId !== publication.academicSessionId ||
+            publishedTerm.academicSessionId !== publication.academicSessionId
+          ) {
+            return false;
+          }
+
+          const startingTermIndex = termOrder.indexOf(startingTerm.name);
+          const publishedTermIndex = termOrder.indexOf(publishedTerm.name);
+
+          return (
+            startingTermIndex !== -1 &&
+            publishedTermIndex !== -1 &&
+            publishedTermIndex >= startingTermIndex
+          );
+        })
+        .map((publication) => ({
+          classId: publication.classId,
+          academicSessionId: publication.academicSessionId,
+          termId: publication.termId,
+        }));
+    } else if (req.user.role === "TEACHER") {
+      const teacher = await prisma.teacher.findUnique({
+        where: {
+          userId: req.user.userId,
+        },
+      });
+
+      if (!teacher) {
+        return res.status(404).json({
+          message: "Teacher profile not found",
+        });
+      }
+
+      const assignments = await prisma.teacherAssignment.findMany({
+        where: {
+          teacherId: teacher.id,
+          ...(academicSessionId !== undefined && {
+            academicSessionId: Number(academicSessionId),
+          }),
+          ...(classId !== undefined && {
+            classId: Number(classId),
+          }),
+          ...(subjectId !== undefined && {
+            subjectId: Number(subjectId),
+          }),
+        },
+        select: {
+          academicSessionId: true,
+          classId: true,
+          subjectId: true,
+        },
+      });
+
+      where.OR = assignments.map((assignment) => ({
+        academicSessionId: assignment.academicSessionId,
+        classId: assignment.classId,
+        subjectId: assignment.subjectId,
+        ...(termId !== undefined && {
+          termId: Number(termId),
+        }),
+        ...(studentId !== undefined && {
+          studentId: Number(studentId),
+        }),
       }));
     } else {
-      // Admins and teachers can use the existing filters
+      // Admins can use the existing filters
       const filters = {
         studentId,
         subjectId,
@@ -521,6 +696,37 @@ export const getResultById = async (req, res) => {
       });
     }
 
+    // Teachers can only view results for their assigned
+    // subject, class, and academic session.
+    if (req.user.role === "TEACHER") {
+      const teacher = await prisma.teacher.findUnique({
+        where: {
+          userId: req.user.userId,
+        },
+      });
+
+      if (!teacher) {
+        return res.status(404).json({
+          message: "Teacher profile not found",
+        });
+      }
+
+      const teacherAssignment = await prisma.teacherAssignment.findFirst({
+        where: {
+          teacherId: teacher.id,
+          subjectId: result.subjectId,
+          classId: result.classId,
+          academicSessionId: result.academicSessionId,
+        },
+      });
+
+      if (!teacherAssignment) {
+        return res.status(403).json({
+          message: "You are not authorized to view this result",
+        });
+      }
+    }
+
     // Students can only view their own published results
     if (req.user.role === "STUDENT") {
       const student = await prisma.student.findUnique({
@@ -542,9 +748,45 @@ export const getResultById = async (req, res) => {
         });
       }
 
-      if (!student.classId) {
-        return res.status(400).json({
-          message: "Student is not assigned to a class",
+      // Verify the student's historical class placement for this session.
+      const studentPlacement = await prisma.studentClassPlacement.findUnique({
+        where: {
+          studentId_academicSessionId: {
+            studentId: student.id,
+            academicSessionId: result.academicSessionId,
+          },
+        },
+      });
+
+      if (!studentPlacement || studentPlacement.classId !== result.classId) {
+        return res.status(403).json({
+          message: "You are not authorized to view this result",
+        });
+      }
+
+      // Verify that the result's term is on or after the placement starting term.
+      const startingTerm = await prisma.term.findUnique({
+        where: {
+          id: studentPlacement.startingTermId,
+        },
+      });
+
+      const termOrder = ["First Term", "Second Term", "Third Term"];
+
+      const resultTermIndex = termOrder.indexOf(result.term.name);
+      const startingTermIndex = startingTerm
+        ? termOrder.indexOf(startingTerm.name)
+        : -1;
+
+      if (
+        !startingTerm ||
+        startingTerm.academicSessionId !== result.academicSessionId ||
+        resultTermIndex === -1 ||
+        startingTermIndex === -1 ||
+        resultTermIndex < startingTermIndex
+      ) {
+        return res.status(403).json({
+          message: "You are not authorized to view this result",
         });
       }
 
@@ -611,6 +853,40 @@ export const updateResult = async (req, res) => {
       });
     }
 
+    const academicSession = await prisma.academicSession.findUnique({
+      where: {
+        id: existingResult.academicSessionId,
+      },
+    });
+
+    if (!academicSession || academicSession.status !== "ACTIVE") {
+      return res.status(409).json({
+        message: "Only results in the active academic session can be edited",
+      });
+    }
+
+    const term = await prisma.term.findUnique({
+      where: {
+        id: existingResult.termId,
+      },
+    });
+
+    if (
+      !term ||
+      term.academicSessionId !== existingResult.academicSessionId ||
+      term.status !== "ACTIVE"
+    ) {
+      return res.status(409).json({
+        message: "Only results in the active term can be edited",
+      });
+    }
+
+    if (!term.resultEntryActivatedAt) {
+      return res.status(409).json({
+        message: "Result entry has not been activated for this term",
+      });
+    }
+
     const teacher = await prisma.teacher.findUnique({
       where: {
         userId: req.user.userId,
@@ -623,13 +899,12 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    const teacherAssignment = await prisma.teacherAssignment.findUnique({
+    const teacherAssignment = await prisma.teacherAssignment.findFirst({
       where: {
-        teacherId_subjectId_classId: {
-          teacherId: teacher.id,
-          subjectId: existingResult.subjectId,
-          classId: existingResult.classId,
-        },
+        teacherId: teacher.id,
+        subjectId: existingResult.subjectId,
+        classId: existingResult.classId,
+        academicSessionId: existingResult.academicSessionId,
       },
     });
 
@@ -640,25 +915,49 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    if (existingResult.status === "APPROVED") {
-      return res.status(403).json({
-        message: "Approved results cannot be edited",
-      });
-    }
-
-    // Get the student's current class
-    const student = await prisma.student.findUnique({
+    // Verify the student's historical class placement for this session.
+    const studentPlacement = await prisma.studentClassPlacement.findUnique({
       where: {
-        id: existingResult.studentId,
-      },
-      select: {
-        classId: true,
+        studentId_academicSessionId: {
+          studentId: existingResult.studentId,
+          academicSessionId: existingResult.academicSessionId,
+        },
       },
     });
 
-    if (!student || !student.classId) {
+    if (
+      !studentPlacement ||
+      studentPlacement.classId !== existingResult.classId
+    ) {
       return res.status(400).json({
-        message: "Student is not assigned to a class",
+        message:
+          "Student's class placement does not match this result's academic session",
+      });
+    }
+
+    // Ensure the result's term is not before the student's placement starting term.
+    const startingTerm = await prisma.term.findUnique({
+      where: {
+        id: studentPlacement.startingTermId,
+      },
+    });
+
+    const termOrder = ["First Term", "Second Term", "Third Term"];
+
+    const resultTermIndex = termOrder.indexOf(term.name);
+    const startingTermIndex = startingTerm
+      ? termOrder.indexOf(startingTerm.name)
+      : -1;
+
+    if (
+      !startingTerm ||
+      startingTerm.academicSessionId !== existingResult.academicSessionId ||
+      resultTermIndex === -1 ||
+      startingTermIndex === -1 ||
+      resultTermIndex < startingTermIndex
+    ) {
+      return res.status(400).json({
+        message: "The student is not eligible to receive results for this term",
       });
     }
 
@@ -701,70 +1000,66 @@ export const updateResult = async (req, res) => {
       });
     }
 
-    // Validate CA assessment if provided
-    if (caStatus !== undefined) {
-      if (!["PRESENT", "ABSENT"].includes(caStatus)) {
-        return res.status(400).json({
-          message: "CA status must be PRESENT or ABSENT",
-        });
-      }
+    // Validate the resulting CA assessment
+    const nextCaStatus =
+      caStatus !== undefined ? caStatus : existingResult.caStatus;
 
-      if (caStatus === "PRESENT") {
-        if (caScore === undefined) {
-          return res.status(400).json({
-            message: "CA score is required when CA status is PRESENT",
-          });
-        }
+    const nextCaScore =
+      caScore !== undefined ? caScore : existingResult.caScore;
 
-        if (caScore !== null && typeof caScore !== "number") {
-          return res.status(400).json({
-            message: "CA score must be a number or null",
-          });
-        }
-
-        if (caScore < 0 || caScore > 40) {
-          return res.status(400).json({
-            message: "CA score must be between 0 and 40",
-          });
-        }
-      } else if (caScore !== undefined && caScore !== null) {
-        return res.status(400).json({
-          message: "CA score must be null when CA status is ABSENT",
-        });
-      }
+    if (!["PRESENT", "ABSENT"].includes(nextCaStatus)) {
+      return res.status(400).json({
+        message: "CA status must be PRESENT or ABSENT",
+      });
     }
 
-    // Validate exam assessment if provided
-    if (examStatus !== undefined) {
-      if (!["PRESENT", "ABSENT"].includes(examStatus)) {
+    if (nextCaStatus === "PRESENT") {
+      if (typeof nextCaScore !== "number") {
         return res.status(400).json({
-          message: "Exam status must be PRESENT or ABSENT",
+          message: "CA score must be a number when CA status is PRESENT",
         });
       }
 
-      if (examStatus === "PRESENT") {
-        if (examScore === undefined) {
-          return res.status(400).json({
-            message: "Exam score is required when exam status is PRESENT",
-          });
-        }
-
-        if (examScore !== null && typeof examScore !== "number") {
-          return res.status(400).json({
-            message: "Exam score must be a number or null",
-          });
-        }
-
-        if (examScore < 0 || examScore > 60) {
-          return res.status(400).json({
-            message: "Exam score must be between 0 and 60",
-          });
-        }
-      } else if (examScore !== undefined && examScore !== null) {
+      if (nextCaScore < 0 || nextCaScore > 40) {
         return res.status(400).json({
-          message: "Exam score must be null when exam status is ABSENT",
+          message: "CA score must be between 0 and 40",
         });
       }
+    } else if (nextCaScore !== null) {
+      return res.status(400).json({
+        message: "CA score must be null when CA status is ABSENT",
+      });
+    }
+
+    // Validate the resulting Exam assessment
+    const nextExamStatus =
+      examStatus !== undefined ? examStatus : existingResult.examStatus;
+
+    const nextExamScore =
+      examScore !== undefined ? examScore : existingResult.examScore;
+
+    if (!["PRESENT", "ABSENT"].includes(nextExamStatus)) {
+      return res.status(400).json({
+        message: "Exam status must be PRESENT or ABSENT",
+      });
+    }
+
+    if (nextExamStatus === "PRESENT") {
+      if (typeof nextExamScore !== "number") {
+        return res.status(400).json({
+          message: "Exam score must be a number when exam status is PRESENT",
+        });
+      }
+
+      if (nextExamScore < 0 || nextExamScore > 60) {
+        return res.status(400).json({
+          message: "Exam score must be between 0 and 60",
+        });
+      }
+    } else if (nextExamScore !== null) {
+      return res.status(400).json({
+        message: "Exam score must be null when exam status is ABSENT",
+      });
     }
 
     const updatedResult = await prisma.result.update({
