@@ -1,5 +1,109 @@
 import prisma from "../lib/prisma.js";
 
+export const getFormTeacherAssignments = async (req, res) => {
+  try {
+    const academicSessionId = req.query.academicSessionId
+      ? Number(req.query.academicSessionId)
+      : undefined;
+
+    if (
+      academicSessionId !== undefined &&
+      (!Number.isInteger(academicSessionId) || academicSessionId < 1)
+    ) {
+      return res.status(400).json({
+        message: "Invalid academic session ID",
+      });
+    }
+
+    const assignments = await prisma.formTeacherAssignment.findMany({
+      where: academicSessionId ? { academicSessionId } : undefined,
+      include: {
+        teacher: true,
+        class: true,
+        academicSession: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    return res.status(200).json(assignments);
+  } catch (error) {
+    console.error("Error fetching form teacher assignments:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch form teacher assignments",
+    });
+  }
+};
+
+export const deleteFormTeacherAssignment = async (req, res) => {
+  try {
+    const assignmentId = Number(req.params.id);
+
+    if (!Number.isInteger(assignmentId) || assignmentId < 1) {
+      return res.status(400).json({
+        message: "Invalid form teacher assignment ID",
+      });
+    }
+
+    const assignment = await prisma.formTeacherAssignment.findUnique({
+      where: {
+        id: assignmentId,
+      },
+      include: {
+        academicSession: true,
+      },
+    });
+
+    if (!assignment) {
+      return res.status(404).json({
+        message: "Form teacher assignment not found",
+      });
+    }
+
+    if (assignment.academicSession.status !== "ACTIVE") {
+      return res.status(400).json({
+        message:
+          "Assignments from inactive academic sessions cannot be deleted",
+      });
+    }
+
+    const resultSheet = await prisma.classResultSheet.findFirst({
+      where: {
+        classId: assignment.classId,
+        academicSessionId: assignment.academicSessionId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (resultSheet) {
+      return res.status(409).json({
+        message:
+          "This assignment cannot be deleted because result-entry activity has already started for this class and academic session",
+      });
+    }
+
+    await prisma.formTeacherAssignment.delete({
+      where: {
+        id: assignmentId,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Form teacher assignment removed successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting form teacher assignment:", error);
+
+    return res.status(500).json({
+      message: "Failed to remove form teacher assignment",
+    });
+  }
+};
+
 export const createFormTeacherAssignment = async (req, res) => {
   try {
     const { teacherId, classId, academicSessionId } = req.body;
@@ -60,6 +164,13 @@ export const createFormTeacherAssignment = async (req, res) => {
     if (!academicSession) {
       return res.status(404).json({
         message: "Academic session not found",
+      });
+    }
+
+    if (academicSession.status !== "ACTIVE") {
+      return res.status(400).json({
+        message:
+          "Form teacher assignments can only be created for the active academic session",
       });
     }
 
